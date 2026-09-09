@@ -1,0 +1,41 @@
+name: Verify Linux RPM packages
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful package build run containing Linux artifacts
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  rpm:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            arch: x86_64
+          - runner: ubuntu-22.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: port-bridge-Linux-${{ matrix.arch }}
+          path: packages
+          run-id: ${{ inputs.build_run_id }}
+          github-token: ${{ github.token }}
+      - name: Install, launch and uninstall RPM on native Fedora
+        run: |
+          docker run --rm -v "$PWD/packages:/packages:ro" fedora:43 bash -euc '
+            dnf install -y /packages/*.rpm xorg-x11-server-Xvfb xorg-x11-xauth
+            rpm -q --qf "%{NAME} %{VERSION} %{ARCH}\n" port-bridge
+            test -L /usr/bin/port-bridge
+            xvfb-run -a /usr/bin/port-bridge --smoke-test
+            dnf remove -y port-bridge
+            test ! -e /opt/port-bridge/port_bridge
+          '
