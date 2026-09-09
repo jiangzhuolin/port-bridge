@@ -1,4 +1,4 @@
-"""Tk integration tests and window captures (Linux/Xvfb or Windows)."""
+"""Tk integration tests and window captures (Linux/Xvfb, Windows, or macOS)."""
 import asyncio
 from dataclasses import replace
 import os
@@ -15,7 +15,6 @@ CAPTURES = ROOT / "build" / "gui-tests"
 CAPTURES.mkdir(parents=True, exist_ok=True)
 from app import App, RuleDialog, SettingsDialog
 from bridge import Config, Rule
-from desktop import autostart_path
 from i18n import LANGUAGES
 from settings import Settings
 
@@ -37,8 +36,10 @@ def pump(app, condition, timeout=8):
 
 
 def capture(app, path):
-    from PIL import ImageGrab
     app.update()
+    if os.environ.get("PORT_BRIDGE_SKIP_CAPTURES") == "1":
+        return
+    from PIL import ImageGrab
     x, y = app.winfo_rootx(), app.winfo_rooty()
     options = {"xdisplay": os.environ["DISPLAY"]} if sys.platform.startswith("linux") else {}
     ImageGrab.grab(bbox=(x, y, x + app.winfo_width(), y + app.winfo_height()), **options).save(path)
@@ -72,6 +73,13 @@ def check_dialog(app, language):
 
 with tempfile.TemporaryDirectory(prefix="port-bridge-gui-") as folder:
     os.environ["XDG_CONFIG_HOME"] = folder
+    # Exercise real launchers without touching the user's actual login-startup location.
+    suffix = {"win32": ".lnk", "darwin": ".plist"}.get(sys.platform, ".desktop")
+    startup = Path(folder) / ("test-autostart" + suffix)
+    startup_patch = patch("desktop.autostart_path", return_value=startup)
+    app_startup_patch = patch("app.autostart_path", return_value=startup)
+    startup_patch.start()
+    app_startup_patch.start()
     app = App(Path(folder) / "rules.json")
     errors = []
     app.report_callback_exception = lambda *args: errors.append(args)
@@ -180,13 +188,13 @@ with tempfile.TemporaryDirectory(prefix="port-bridge-gui-") as folder:
     app.after(100, edit_dialog)
     app.edit_button.invoke()
     assert app.rules[0].name.endswith("已编辑")
-    if sys.platform.startswith("linux"):
-        app.autostart.set(True)
-        app.toggle_autostart()
-        assert autostart_path().exists()
-        app.autostart.set(False)
-        app.toggle_autostart()
-        assert not autostart_path().exists()
+    assert app.autostart_check.instate(["!disabled"])
+    app.autostart.set(True)
+    app.toggle_autostart()
+    assert startup.exists()
+    app.autostart.set(False)
+    app.toggle_autostart()
+    assert not startup.exists()
 
     async def stop_target():
         target.close()
@@ -209,5 +217,7 @@ with tempfile.TemporaryDirectory(prefix="port-bridge-gui-") as folder:
     second.close()
     second.mainloop()
     assert not second.worker.thread.is_alive()
+    app_startup_patch.stop()
+    startup_patch.stop()
 print("GUI integration passed: bilingual settings, cancel/save failure, live switching without disconnects, "
       "localized validation, preference reload, add/edit/delete, traffic, stop, autostart, shutdown")

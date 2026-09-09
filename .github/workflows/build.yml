@@ -1,0 +1,75 @@
+name: Test and build desktop apps
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2022
+            arch: x86_64
+            python_arch: x64
+          - runner: windows-11-arm
+            arch: arm64
+            python_arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+            python_arch: x64
+          - runner: macos-15
+            arch: arm64
+            python_arch: arm64
+          - runner: ubuntu-22.04
+            arch: x86_64
+            python_arch: x64
+          - runner: ubuntu-22.04-arm
+            arch: arm64
+            python_arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          architecture: ${{ matrix.python_arch }}
+      - name: Linux GUI dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y python3-tk xvfb xauth fonts-noto-cjk binutils
+      - name: Build and test dependencies
+        run: python -m pip install -r requirements-build.txt Pillow
+      - name: Core tests
+        run: python -m unittest discover -s tests -v
+      - name: Runtime information
+        run: python app.py --platform-info
+      - name: Linux GUI integration
+        if: runner.os == 'Linux'
+        run: xvfb-run -a -s "-screen 0 1600x1100x24" python scripts/gui_smoke.py
+      - name: Windows and macOS GUI integration
+        if: runner.os != 'Linux'
+        env:
+          PORT_BRIDGE_SKIP_CAPTURES: '1'
+        run: python scripts/gui_smoke.py
+      - name: Build native bundle
+        run: python scripts/build_native.py --target-arch ${{ matrix.arch }}
+      - name: Test Linux bundle
+        if: runner.os == 'Linux'
+        run: xvfb-run -a python scripts/native_smoke.py
+      - name: Test Windows and macOS bundle
+        if: runner.os != 'Linux'
+        run: python scripts/native_smoke.py
+      - name: Build architecture-independent source and Debian package
+        if: matrix.runner == 'ubuntu-22.04'
+        run: |
+          python scripts/build_package.py
+          bash scripts/build_deb.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: port-bridge-${{ runner.os }}-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error

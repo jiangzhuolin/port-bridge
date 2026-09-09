@@ -7,17 +7,20 @@ from pathlib import Path
 import queue
 import sys
 import threading
-import tkinter as tk
-from tkinter import messagebox, ttk
 import uuid
 
+from platform_support import config_directory, runtime_info, system_name, tk_install_hint, VERSION
+
+try:
+    import tkinter as tk
+    from tkinter import font as tkfont, messagebox, ttk
+except ImportError:
+    raise SystemExit(tk_install_hint()) from None
+
 from bridge import Config, Engine, Rule, endpoint
-from desktop import autostart_path, config_home, set_autostart
+from desktop import InstanceLock, autostart_path, set_autostart
 from i18n import DEFAULT_LANGUAGE, LANGUAGES, LocalizedError, error_message, error_text, translate
 from settings import Settings
-
-VERSION = "1.0.0"
-
 
 def human_bytes(value):
     for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
@@ -160,6 +163,11 @@ class SettingsDialog(tk.Toplevel):
         self.choice.pack(fill="x", pady=(12, 16))
         ttk.Label(box, text=parent.tr("Changes apply immediately and are saved for the next launch."),
                   style="Muted.TLabel", wraplength=380).pack(anchor="w")
+        info = runtime_info()
+        ttk.Label(box, text=parent.tr("Runtime platform"), style="Section.TLabel").pack(anchor="w", pady=(20, 6))
+        description = info.get("distribution", {"windows": "Windows", "macos": "macOS"}.get(info["system"], info["system"]))
+        ttk.Label(box, text=f"{description}\n{info['architecture']} · Python {info['python']} ({info['bits']}-bit)",
+                  style="Muted.TLabel", wraplength=380).pack(anchor="w")
         buttons = ttk.Frame(box)
         buttons.pack(anchor="e", pady=(20, 0))
         ttk.Button(buttons, text=parent.tr("Cancel"), command=self.destroy).pack(side="left", padx=8)
@@ -191,7 +199,7 @@ class App(tk.Tk):
         self.geometry("1240x800")
         self.minsize(1160, 740)
         self.configure(bg="#f4f7fb")
-        self.config_store = Config(config_path or config_home() / "port-bridge" / "rules.json")
+        self.config_store = Config(config_path or config_directory() / "rules.json")
         self.settings_store = Settings(self.config_store.path.with_name("settings.json"))
         self.language = DEFAULT_LANGUAGE
         self.settings_error = None
@@ -215,6 +223,9 @@ class App(tk.Tk):
         self.append_log(None, "TCP forwarding is ready. Application protocols are handled by the target service.")
         self.refresh()
         self.protocol("WM_DELETE_WINDOW", self.close)
+        if system_name() == "macos":
+            self.createcommand("tk::mac::Quit", self.close)
+            self.bind("<Command-q>", lambda _: self.close())
         self.poll_id = self.after(100, self.poll)
         if self.read_error:
             self.after(150, lambda: messagebox.showerror(self.tr("Unable to load configuration"), self.tr(
@@ -236,7 +247,11 @@ class App(tk.Tk):
     def style_ui(self):
         style = ttk.Style(self)
         style.theme_use("clam")
-        family = "Noto Sans CJK SC" if sys.platform.startswith("linux") else "Microsoft YaHei UI"
+        available = set(tkfont.families(self))
+        preferred = {"windows": ("Microsoft YaHei UI", "Segoe UI"),
+                     "macos": ("PingFang SC", "Helvetica Neue"),
+                     "linux": ("Noto Sans CJK SC", "Noto Sans", "DejaVu Sans")}.get(system_name(), ())
+        family = next((name for name in preferred if name in available), tkfont.nametofont("TkDefaultFont").actual("family"))
         self.font_family = family
         style.configure(".", font=(family, 10), background="#f4f7fb", foreground="#172b43")
         style.configure("Title.TLabel", font=(family, 24, "bold"), foreground="#132a43")
@@ -318,11 +333,11 @@ class App(tk.Tk):
         log_scroll.pack(side="right", fill="y")
         foot = ttk.Frame(base)
         foot.pack(fill="x", pady=(18, 0))
-        self.autostart = tk.BooleanVar(value=autostart_path().exists() if sys.platform.startswith("linux") else False)
-        self.autostart_check = ttk.Checkbutton(foot, text=self.tr("Open at Linux desktop login"), variable=self.autostart,
+        self.autostart = tk.BooleanVar(value=autostart_path().exists())
+        self.autostart_check = ttk.Checkbutton(foot, text=self.tr("Open at desktop login"), variable=self.autostart,
                                               command=self.toggle_autostart)
         self.autostart_check.pack(side="left")
-        if not sys.platform.startswith("linux"):
+        if system_name() not in ("windows", "macos", "linux"):
             self.autostart_check.state(["disabled"])
         ttk.Label(foot, text=self.tr("Forwarding continues while minimized; exiting stops all rules."), style="Muted.TLabel").pack(side="right")
         self.render_logs()
@@ -536,31 +551,39 @@ class App(tk.Tk):
 
 
 def main():
-    lock_file = None
-    if sys.platform.startswith("linux"):
-        import fcntl
-        folder = config_home() / "port-bridge"
-        folder.mkdir(parents=True, exist_ok=True)
-        lock_file = (folder / "app.lock").open("a")
+    import argparse
+    import json
+    import tempfile
+    parser = argparse.ArgumentParser(description="Port Bridge desktop TCP forwarding")
+    parser.add_argument("--platform-info", action="store_true", help="Print OS and Python runtime architecture as JSON")
+    parser.add_argument("--smoke-test", action="store_true", help="Open and close an isolated test window")
+    args = parser.parse_args()
+    if args.platform_info:
+        print(json.dumps(runtime_info(), indent=2))
+        return
+    if args.smoke_test:
+        with tempfile.TemporaryDirectory(prefix="port-bridge-smoke-") as folder:
+            app = App(Path(folder) / "rules.json")
+            app.after(500, app.close)
+            app.mainloop()
+        return
+    folder = config_directory()
+    lock = InstanceLock(folder / "app.lock")
+    if not lock.acquire():
+        root = tk.Tk()
+        root.withdraw()
         try:
-            fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            root = tk.Tk()
-            root.withdraw()
-            try:
-                language = Settings(folder / "settings.json").language()
-            except Exception:
-                language = DEFAULT_LANGUAGE
-            messagebox.showinfo(translate(language, "Port Bridge is already running"),
-                                translate(language, "The application is already open. Find its window in the taskbar."), parent=root)
-            root.destroy()
-            lock_file.close()
-            return
+            language = Settings(folder / "settings.json").language()
+        except Exception:
+            language = DEFAULT_LANGUAGE
+        messagebox.showinfo(translate(language, "Port Bridge is already running"),
+                            translate(language, "The application is already open. Find its window in the taskbar."), parent=root)
+        root.destroy()
+        return
     try:
         App().mainloop()
     finally:
-        if lock_file:
-            lock_file.close()
+        lock.close()
 
 
 if __name__ == "__main__":

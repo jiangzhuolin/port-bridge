@@ -4,41 +4,77 @@ English | [简体中文](README.zh-CN.md)
 
 A lightweight desktop application for managing TCP port forwarding rules. Listen on a local address and port, forward connections to a target service, and monitor connections and traffic from one window.
 
-Port Bridge uses Python's standard library, Tkinter, and asyncio. It is designed for Linux desktops and requires no pip packages, external forwarding utilities, or per-rule system services.
+Port Bridge uses Python's standard library, Tkinter, and asyncio. It runs on Windows, macOS, and Linux desktops without external forwarding utilities or per-rule system services. Running from source requires no pip packages; native bundles include Python and Tk.
 
 ## Features
 
 - Add, edit, and delete multiple forwarding rules; start or stop them individually or together.
 - View active and cumulative connections, sent / received traffic, errors, and activity logs.
 - Save rules locally and optionally start them when the application opens.
-- Optionally launch at Linux desktop login.
+- Native launchers, optional desktop login startup, and single-instance protection on Windows, macOS, and Linux.
 - Switch between English and Simplified Chinese in **Settings → Language**. Changes apply immediately and persist across launches; active connections continue.
 - Forward bidirectional TCP traffic, including TCP half-close, with IPv4 and IPv6 listening addresses.
 
 ## Installation
 
-Python 3.10+ and Tkinter are required. Linux packaging targets Ubuntu 22.04+ and Debian 12+ with a graphical desktop session. The application can also run on Windows with Tkinter installed; the installer, desktop autostart, and single-instance lock are Linux-specific.
+### Platform and architecture support
+
+| Platform | x86_64 (Intel / AMD) | ARM64 (AArch64 / Apple Silicon) | Desktop integration |
+| --- | --- | --- | --- |
+| Windows 10/11 | Source and native `.exe` bundle | Source and native `.exe` bundle; use ARM64 Python with Tk | Start menu shortcut, Startup shortcut |
+| macOS | Source and native `.app` bundle | Source and native `.app` bundle | `~/Applications` launcher, per-user LaunchAgent |
+| Ubuntu / Debian / Linux Mint | Source, native bundle, `.deb` | Source, native bundle, `.deb` | Application menu and XDG autostart |
+| Fedora, Arch / Manjaro, openSUSE | Source and native bundle with compatible system libraries | Source where the distribution supplies ARM64 Python/Tk; native bundle with compatible libraries | Application menu and XDG autostart |
+| Raspberry Pi OS / other 32-bit ARM Linux | — | Use a 64-bit OS for ARM64; **ARMv7 / armhf uses source or the architecture-independent `.deb`** | Application menu and XDG autostart |
+
+The primary native build targets are **x86_64** and **arm64**. ARMv7 is a distinct 32-bit architecture, not an alias for ARM64. Source code is architecture independent, but Python, Tcl/Tk, and native bundles must match the runtime architecture. Distribution availability varies; for example, official Arch Linux packages target x86_64, while ARM derivatives have their own repositories.
+
+**Settings → Runtime platform** shows the OS (including the Linux distribution), Python version, and runtime architecture. You can also run `python app.py --platform-info`. An x86_64 Python running under emulation still reports an x86_64 runtime and produces an x86_64 bundle.
+
+Source requirements: Python 3.10+ and Tkinter; use Python 3.11+ for native Windows ARM64 Tk support. A graphical desktop is required. Linux Tk uses an X11 display, including XWayland in Wayland sessions. macOS uses native Aqua Tk from a current python.org installer. The application does not require a particular Linux package manager at runtime.
+
+The repository includes a six-target GitHub Actions matrix for Windows, macOS, and Ubuntu, each on x86_64 and ARM64. Local verification covers Windows x86_64 and Debian x86_64; macOS and ARM hardware validation must be completed by those CI runners. ARMv7 and other Linux distributions are source compatibility targets, not hardware-tested here.
 
 ### Run from source
 
-Download or clone the repository and open its directory. On Ubuntu / Debian:
+Download or clone the repository, install a matching Python/Tk runtime, then open the project directory:
+
+| System | Install Python / Tkinter |
+| --- | --- |
+| Windows | Use the x86_64 or ARM64 installer from [python.org](https://www.python.org/downloads/windows/) with Tcl/Tk enabled |
+| macOS | Use the universal2 installer from [python.org](https://www.python.org/downloads/macos/); run its native interpreter for your CPU |
+| Ubuntu / Debian / Linux Mint | `sudo apt install python3 python3-tk` |
+| Fedora | `sudo dnf install python3 python3-tkinter` |
+| Arch / Manjaro | `sudo pacman -S python tk` |
+| openSUSE | `zypper search -s 'python3*-tk'`, then install the Tk package matching your interpreter, for example `python313-tk` for Python 3.13 |
 
 ```bash
-sudo apt install python3-tk
+python3 -m tkinter
 python3 app.py
 ```
 
-On Windows, run `python app.py` using a Python installation with Tkinter support.
+On Windows, use `python` in place of `python3`. The first command opens a small Tk test window; close it before starting Port Bridge. Tkinter is an OS/Python component, not a package installed with pip.
 
-### Install for the current Linux user
+### Install for the current user
 
-After installing Tkinter, run this from the source directory:
+After installing Python/Tk, run `python3 install.py` (`python install.py` on Windows). No administrator privileges are needed. The installer creates a Windows Start menu shortcut, a macOS `~/Applications/Port Bridge.app` launcher, or a Linux application-menu entry. Source installations retain a dependency on the Python interpreter used during installation; rerun the installer if it moves.
 
-```bash
-python3 install.py
+### Native bundles
+
+Build locally using the instructions below, or download an artifact from a successful GitHub Actions run. Choose the archive matching both the OS and architecture:
+
+```text
+port-bridge-1.0.0-windows-x86_64.zip
+port-bridge-1.0.0-windows-arm64.zip
+port-bridge-1.0.0-macos-x86_64.zip
+port-bridge-1.0.0-macos-arm64.zip
+port-bridge-1.0.0-linux-x86_64.tar.gz
+port-bridge-1.0.0-linux-arm64.tar.gz
 ```
 
-Then open **Port Bridge** from the application menu. The installer copies files into the current user's data directory and does not itself require root.
+Extract the complete archive. On Windows open `PortBridge/PortBridge.exe`; on macOS open `PortBridge.app` (it can be moved into Applications); on Linux run `PortBridge/PortBridge`. Keep each bundle's supporting files together. Enable login startup only after placing the bundle in its permanent location; toggle the preference off and on after moving it.
+
+Native Linux bundles depend on compatible system libraries, including glibc and a graphical desktop. CI builds on Ubuntu 22.04; this does not make the bundle universal across every Linux release or musl-based distribution. Use source installation or build on the target distribution when compatibility differs. macOS CI builds on macOS 15 and does not establish support for older releases; build from source on the required OS. CI artifacts do not include a publisher signature or Apple notarization.
 
 ### Debian package
 
@@ -48,7 +84,7 @@ If you have downloaded or built the Debian package:
 sudo apt install ./port-bridge_1.0.0_all.deb
 ```
 
-The package declares Python and Tkinter dependencies. Open **Port Bridge** from the application menu or run `port-bridge`. Choose either the Debian package or the user installation to avoid duplicate launchers; both use the same configuration directory.
+The package declares Python and Tkinter dependencies. Open **Port Bridge** from the application menu or run `port-bridge`. The `.deb` contains pure Python and declares `Architecture: all`: it uses the distribution's native Python/Tk on amd64, arm64, or armhf rather than embedding architecture-specific executables. Choose either the Debian package or the user installation to avoid duplicate launchers; both use the same configuration directory.
 
 ## Usage
 
@@ -81,7 +117,7 @@ Typical uses include forwarding to a development server, accessing a reachable T
 
 The application defaults to English. Open **Settings → Language**, choose **English** or **简体中文**, and click **Apply**. Labels, statuses, validation messages, and application log messages update immediately. Rule names and addresses remain as entered; operating-system error details use the language supplied by the system.
 
-**Start this rule when the application opens** controls automatic activation on the next launch. **Start all** starts every rule regardless of that preference. **Open at Linux desktop login** launches the application after the current user logs into a graphical desktop session.
+**Start this rule when the application opens** controls automatic activation on the next launch. **Start all** starts every rule regardless of that preference. **Open at desktop login** launches the application after the current user logs into a graphical desktop session, using the Windows Startup folder, a macOS LaunchAgent, or Linux XDG autostart. It does not start a system service before login.
 
 ## Behavior and limitations
 
@@ -95,13 +131,15 @@ The application defaults to English. Open **Settings → Language**, choose **En
 
 ## Configuration
 
-The configuration base directory is `$XDG_CONFIG_HOME`, or `~/.config` when that variable is unset:
+Rules and settings are stored per user:
 
-| File | Purpose |
-| --- | --- |
-| `port-bridge/rules.json` | Rules and per-rule startup preferences |
-| `port-bridge/settings.json` | Application language (`en` or `zh_CN`) |
-| `autostart/io.portbridge.desktop` | Optional Linux desktop login launcher |
+| System | Configuration directory | Source installation directory | Login startup entry |
+| --- | --- | --- | --- |
+| Windows | `%APPDATA%/port-bridge` | `%LOCALAPPDATA%/port-bridge` | `%APPDATA%/Microsoft/Windows/Start Menu/Programs/Startup/Port Bridge.lnk` |
+| macOS | `~/Library/Application Support/port-bridge` | `~/Library/Application Support/port-bridge` | `~/Library/LaunchAgents/io.portbridge.plist` |
+| Linux | `~/.config/port-bridge` | `~/.local/share/port-bridge` | `~/.config/autostart/io.portbridge.desktop` |
+
+`rules.json` contains rules and their startup preferences; `settings.json` contains the language (`en` or `zh_CN`). `app.lock` protects the active instance. Explicit `XDG_CONFIG_HOME` and `XDG_DATA_HOME` overrides remain supported; on Windows/macOS they do not relocate the OS-native startup folder. Existing Windows/macOS configurations under `~/.config/port-bridge` continue to be used if the native directory contains no rules or settings yet.
 
 Existing version-1 rule files remain supported. Language preferences are stored separately. An unreadable rule file is preserved and changes are disabled until it is repaired. An unreadable settings file falls back to English and is preserved; repair it and restart before saving preferences. An unknown language code falls back to English.
 
@@ -110,7 +148,7 @@ Existing version-1 rule files remain supported. Language preferences are stored 
 - **Failed to start:** check the log for an occupied port, a listening IP that does not belong to the host, or insufficient permission to bind the port.
 - **Running but connections fail:** check target reachability, the target service's listening address, and firewall rules.
 - **Remote clients time out:** verify they use a reachable host address and that the listener and firewall allow access from their network.
-- **Application already running on Linux:** find the existing window in the taskbar. One instance per user configuration directory is allowed.
+- **Application already running:** find the existing window in the taskbar or Dock. One instance per user configuration directory is allowed.
 
 ## Development
 
@@ -119,6 +157,22 @@ Run core tests:
 ```bash
 python3 -m unittest discover -s tests -v
 ```
+
+Build a native bundle **on the target OS with a matching-architecture Python interpreter**:
+
+Linux builds require `binutils` and libc tools (`ldd`), plus venv support. On Ubuntu / Debian, install `python3-venv binutils` with apt before the commands below. A system Python also needs its shared library (for example, `libpython3.13` for Python 3.13). Other distributions provide equivalent build packages.
+
+```bash
+python3 -m venv .venv
+# Linux/macOS: source .venv/bin/activate
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+python -m pip install -r requirements-build.txt
+python scripts/build_native.py --target-arch x86_64
+# On ARM64 with ARM64 Python: use --target-arch arm64
+python scripts/native_smoke.py
+```
+
+On headless Linux, run the last command under `xvfb-run -a`. `--target-arch` validates the interpreter architecture; it does not cross-compile. Bundles include `build-info.json` with OS, runtime architecture, Python, Tk, PyInstaller, and (on Linux) libc details. Workflow artifacts are produced only after tests pass; the workflow does not publish GitHub Releases.
 
 Build the source archive and Debian package (the second command requires Linux and `dpkg-deb`):
 
@@ -136,7 +190,7 @@ sudo apt install python3-tk xvfb xauth python3-pil fonts-noto-cjk
 xvfb-run -a -s "-screen 0 1400x1000x24" python3 scripts/gui_smoke.py
 ```
 
-Captures are saved to `build/gui-tests/`. With the Debian package installed, verify the system launcher with `xvfb-run -a python3 scripts/package_smoke.py`. The GUI test can also run on Windows with Pillow installed using `python scripts/gui_smoke.py`; Linux autostart checks are skipped there.
+Captures are saved to `build/gui-tests/`. With the Debian package installed, verify the system launcher with `xvfb-run -a python3 scripts/package_smoke.py`. The GUI test also runs on Windows and macOS using `python scripts/gui_smoke.py`, including native autostart checks in an isolated temporary location. Set `PORT_BRIDGE_SKIP_CAPTURES=1` to run without screenshots or Pillow (useful on macOS CI without screen-recording permission).
 
 Translations are maintained in `i18n.py`. Runtime state codes are independent of the display language; new user-facing messages should use the translation helper and preserve placeholders in both languages.
 
@@ -144,10 +198,14 @@ Bug reports and pull requests are welcome. Include the operating system, Python 
 
 ## Uninstall
 
-First disable **Open at Linux desktop login** and exit. For a Debian installation:
+First disable **Open at desktop login** and exit. For a Debian installation:
 
 ```bash
 sudo apt remove port-bridge
 ```
 
 For a user installation, remove `~/.local/share/port-bridge`, `~/.local/share/applications/io.portbridge.desktop`, and `~/.local/share/icons/hicolor/scalable/apps/io.portbridge.svg`, or their equivalents under `$XDG_DATA_HOME`. Configuration is retained and can be removed separately from the configuration directory.
+
+On Windows, remove the source installation directory and the Start menu `Port Bridge.lnk`. On macOS, remove `~/Applications/Port Bridge.app` and the source installation directory. For native bundles, remove the extracted folder or `.app`. Rules and preferences remain in the configuration directory unless removed separately.
+
+Platform references: [Python / Tkinter](https://docs.python.org/3/library/tkinter.html), [Windows ARM64 Tk support](https://github.com/python/cpython/issues/90725), [PyInstaller platform requirements](https://pyinstaller.org/en/stable/requirements.html), [GitHub runner architectures](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).

@@ -1,39 +1,37 @@
 #!/usr/bin/env python3
-"""Install a desktop launcher for the current user, without root."""
-import os
+"""Install the source application and a native launcher for the current user."""
 from pathlib import Path
 import shutil
-import sys
 
-from desktop import config_home, launcher
+from desktop import autostart_path, install_launcher, set_autostart
+from platform_support import APP_ID, data_home, runtime_info, system_name, tk_install_hint
+
+SOURCE_FILES = ("app.py", "bridge.py", "desktop.py", "platform_support.py", "i18n.py", "settings.py",
+                "install.py", "icon.svg", "README.md", "README.zh-CN.md")
 
 
 def main():
-    if not sys.platform.startswith("linux"):
-        raise SystemExit("This installer requires Linux.")
+    if system_name() not in ("windows", "macos", "linux"):
+        raise SystemExit(f"Unsupported operating system: {system_name()}")
     try:
         import tkinter
     except ImportError:
-        raise SystemExit("Install the GUI dependency first: sudo apt install python3-tk") from None
-    data = Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share")))
-    destination = data / "port-bridge"
+        raise SystemExit(tk_install_hint()) from None
+    destination = data_home() / "port-bridge"
     destination.mkdir(parents=True, exist_ok=True)
     source = Path(__file__).resolve().parent
-    for name in ("app.py", "bridge.py", "desktop.py", "i18n.py", "settings.py", "install.py", "icon.svg", "README.md", "README.zh-CN.md"):
+    for name in SOURCE_FILES:
         if (source / name).resolve() != (destination / name).resolve():
             shutil.copyfile(source / name, destination / name)
-    applications = data / "applications"
-    applications.mkdir(parents=True, exist_ok=True)
-    (applications / "io.portbridge.desktop").write_text(
-        launcher(destination / "app.py", "io.portbridge"), encoding="utf-8")
-    icons = data / "icons" / "hicolor" / "scalable" / "apps"
-    icons.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(destination / "icon.svg", icons / "io.portbridge.svg")
-    # Preserve an existing login preference when installing/moving the app.
-    auto = config_home() / "autostart" / "io.portbridge.desktop"
-    if auto.exists():
-        auto.write_text(launcher(destination / "app.py", "io.portbridge"), encoding="utf-8")
-    print(f"Installed to {destination}\nFind Port Bridge in your application menu.")
+    entry = install_launcher(destination / "app.py")
+    if system_name() == "linux":
+        icons = data_home() / "icons/hicolor/scalable/apps"
+        icons.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(destination / "icon.svg", icons / f"{APP_ID}.svg")
+    if autostart_path().exists():
+        set_autostart(True, destination / "app.py")
+    info = runtime_info()
+    print(f"Installed for {info['system']} / {info['architecture']}: {destination}\nLauncher: {entry}")
 
 
 if __name__ == "__main__":
