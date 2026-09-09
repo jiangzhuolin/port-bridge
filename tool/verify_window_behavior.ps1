@@ -80,11 +80,17 @@ New-Item -ItemType Directory -Path $testRoot | Out-Null
 $echo = [BridgeEchoTest]::new()
 try {
     foreach ($tray in @($false, $true)) {
-        foreach ($close in @('exit', 'minimize')) {
+        foreach ($close in @('exit', 'minimize', 'prompt')) {
             $caseRoot = Join-Path $testRoot "$tray-$close"
             $config = Join-Path $caseRoot 'port-bridge'
             New-Item -ItemType Directory -Path $config -Force | Out-Null
-            @{language='zh_CN'; minimize_to_tray=$tray; close_action=$close} |
+            $settings = @{language='zh_CN'; minimize_to_tray=$tray; close_action=$close; close_action_confirmed=$true}
+            if ($close -eq 'prompt') {
+                # Simulate a pre-0.2.2 configuration with no confirmation marker.
+                $settings.close_action = 'exit'
+                $settings.Remove('close_action_confirmed')
+            }
+            $settings |
                 ConvertTo-Json | Set-Content -LiteralPath (Join-Path $config 'settings.json') -Encoding utf8
             $reservation = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
             $reservation.Start()
@@ -115,6 +121,29 @@ try {
                 $stream = $client.GetStream()
                 $stream.ReadTimeout = 3000
                 Assert-BridgeEcho $stream
+
+                if ($close -eq 'prompt') {
+                    # A repeated title-bar close must not silently exit or minimize
+                    # while waiting for the first choice. Widget tests exercise the
+                    # dialog buttons, cancellation, failed writes and persistence.
+                    foreach ($attempt in 1..2) {
+                        [BridgeWindowTest]::PostMessage($window, 0x0010, [IntPtr]0, [IntPtr]0) | Out-Null
+                        Start-Sleep -Milliseconds 750
+                        if ($process.HasExited -or -not [BridgeWindowTest]::IsWindowVisible($window) -or [BridgeWindowTest]::IsIconic($window)) {
+                            throw 'Unconfirmed close did not keep the window open'
+                        }
+                        Assert-BridgeEcho $stream
+                    }
+                    $saved = Get-Content -LiteralPath (Join-Path $config 'settings.json') -Raw | ConvertFrom-Json
+                    if ($saved.close_action_confirmed) { throw 'Close choice was confirmed without user input' }
+                    if ($tray) {
+                        [BridgeWindowTest]::PostMessage($window, 0x0111, [IntPtr]41002, [IntPtr]0) | Out-Null
+                        Wait-BridgeCondition { $process.HasExited } 'tray exit while awaiting first close choice'
+                        if ($process.ExitCode -ne 0) { throw "Application exited with $($process.ExitCode)" }
+                    }
+                    Write-Output "Passed: tray=$tray, first Close and repeated Close retain window, unconfirmed settings and active TCP."
+                    continue
+                }
 
                 [BridgeWindowTest]::PostMessage($window, 0x0112, [IntPtr]0xF020, [IntPtr]0) | Out-Null
                 Wait-BridgeCondition {

@@ -12,6 +12,7 @@ class WindowSession {
   final Future<void> Function() releaseLock;
   Future<void> _pending = Future.value();
   Future<void>? _shutdown;
+  Future<void>? _closeRequest;
   bool _hidden = false, _disposed = false;
   String? _trayPreferences;
 
@@ -91,13 +92,29 @@ class WindowSession {
     _hidden = false;
   }
 
-  Future<void> closeWindow() => _enqueue(() async {
+  Future<void> closeWindow() =>
+      _closeRequest ??= _requestClose().whenComplete(() {
+        _closeRequest = null;
+      });
+
+  Future<void> _requestClose() async {
+    if (_disposed) return;
+    if (!controller.windowPreferences.closeActionConfirmed) {
+      await restore();
+      if (_disposed) return;
+      final confirmed = await controller.confirmCloseAction?.call() ?? false;
+      if (!confirmed || _disposed) return;
+    }
+    await _enqueue(_applyCloseAction);
+  }
+
+  Future<void> _applyCloseAction() async {
     if (controller.windowPreferences.closeAction == CloseAction.minimize) {
       await _minimize();
     } else {
       await _exit();
     }
-  });
+  }
 
   /// Explicit tray Quit and operating-system Quit always terminate forwarding.
   Future<void> exit() => _enqueue(_exit);

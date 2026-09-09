@@ -30,6 +30,7 @@ class MemoryStore extends ConfigStore {
     'accent_color': appearance.accent.name,
     'minimize_to_tray': windowPreferences.minimizeToTray,
     'close_action': windowPreferences.closeAction.name,
+    'close_action_confirmed': windowPreferences.closeActionConfirmed,
   };
   @override
   Future<void> saveRules(List<ForwardRule> value) async {
@@ -254,6 +255,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('minimizeToTray')));
       await tester.pumpAndSettle();
       expect(store.windowPreferences.minimizeToTray, isTrue);
+      expect(store.windowPreferences.closeActionConfirmed, isFalse);
       await tester.ensureVisible(
         find.byKey(const ValueKey('closeActionSelector')),
       );
@@ -262,6 +264,7 @@ void main() {
       await tester.tap(find.text('Minimize').last);
       await tester.pumpAndSettle();
       expect(store.windowPreferences.closeAction, CloseAction.minimize);
+      expect(store.windowPreferences.closeActionConfirmed, isTrue);
       store.failSave = true;
       await tester.tap(find.byKey(const ValueKey('closeActionSelector')));
       await tester.pumpAndSettle();
@@ -348,4 +351,67 @@ void main() {
     expect(find.text('English'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  for (final action in CloseAction.values) {
+    testWidgets('first-close dialog remembers $action across restarts', (
+      tester,
+    ) async {
+      await controller.setWindowPreferences(
+        const WindowPreferences(minimizeToTray: true),
+      );
+      await open(tester, const Size(800, 600));
+      final result = controller.confirmCloseAction!();
+      await tester.pumpAndSettle();
+      expect(find.text('What should the Close button do?'), findsOneWidget);
+      await tester.tap(
+        find.byKey(
+          ValueKey(
+            action == CloseAction.exit
+                ? 'firstCloseExit'
+                : 'firstCloseMinimize',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(await result, isTrue);
+      expect(find.byKey(const ValueKey('firstCloseDialog')), findsNothing);
+      expect(store.windowPreferences.closeAction, action);
+      expect(store.windowPreferences.minimizeToTray, isTrue);
+      final restored = BridgeController(
+        store: store,
+        engine: FakeEngine(),
+        desktop: FakeDesktop(),
+      );
+      await tester.runAsync(() async {
+        await restored.initialize();
+        expect(restored.windowPreferences.closeActionConfirmed, isTrue);
+        expect(restored.windowPreferences.closeAction, action);
+        await restored.shutdown();
+      });
+      restored.dispose();
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets(
+    'first-close save failure keeps the Chinese dialog open and cancel changes nothing',
+    (tester) async {
+      await controller.setLanguage('zh_CN');
+      store.failSave = true;
+      await open(tester, const Size(800, 600));
+      final result = controller.confirmCloseAction!();
+      await tester.pumpAndSettle();
+      expect(find.text('点击关闭按钮时要执行什么操作？'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('firstCloseExit')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Read only'), findsOneWidget);
+      expect(controller.windowPreferences.closeActionConfirmed, isFalse);
+      expect(find.byKey(const ValueKey('firstCloseDialog')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('firstCloseCancel')));
+      await tester.pumpAndSettle();
+      expect(await result, isFalse);
+      expect(controller.closing, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

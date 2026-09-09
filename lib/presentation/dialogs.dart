@@ -392,6 +392,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
                               WindowPreferences(
                                 minimizeToTray: value,
                                 closeAction: c.windowPreferences.closeAction,
+                                closeActionConfirmed:
+                                    c.windowPreferences.closeActionConfirmed,
                               ),
                             ),
                           ),
@@ -422,6 +424,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                                         minimizeToTray:
                                             c.windowPreferences.minimizeToTray,
                                         closeAction: value,
+                                        closeActionConfirmed: true,
                                       ),
                                     ),
                                   );
@@ -522,6 +525,98 @@ class _SettingsDialogState extends State<SettingsDialog> {
               ),
             ),
           ),
+        ),
+      );
+    },
+  );
+}
+
+class FirstCloseDialog extends StatefulWidget {
+  const FirstCloseDialog({super.key, required this.controller});
+  final BridgeController controller;
+
+  @override
+  State<FirstCloseDialog> createState() => _FirstCloseDialogState();
+}
+
+class _FirstCloseDialogState extends State<FirstCloseDialog> {
+  bool saving = false;
+  Object? error;
+
+  Future<void> choose(CloseAction action) async {
+    if (saving) return;
+    setState(() {
+      saving = true;
+      error = null;
+    });
+    try {
+      await widget.controller.setWindowPreferences(
+        WindowPreferences(
+          minimizeToTray: widget.controller.windowPreferences.minimizeToTray,
+          closeAction: action,
+          closeActionConfirmed: true,
+        ),
+      );
+      if (mounted) Navigator.pop(context, true);
+    } catch (value) {
+      if (mounted) {
+        setState(() {
+          saving = false;
+          error = value;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: widget.controller,
+    builder: (context, _) {
+      final s = Strings(widget.controller.language);
+      return PopScope(
+        canPop: !saving,
+        child: AlertDialog(
+          key: const ValueKey('firstCloseDialog'),
+          title: Text(s('firstCloseTitle')),
+          content: SizedBox(
+            width: 430,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(s('firstCloseHint')),
+                  if (error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: Text(
+                        s.error(error!),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              key: const ValueKey('firstCloseCancel'),
+              onPressed: saving ? null : () => Navigator.pop(context, false),
+              child: Text(s('cancel')),
+            ),
+            OutlinedButton(
+              key: const ValueKey('firstCloseExit'),
+              onPressed: saving ? null : () => choose(CloseAction.exit),
+              child: Text(s('close_exit')),
+            ),
+            FilledButton(
+              key: const ValueKey('firstCloseMinimize'),
+              onPressed: saving ? null : () => choose(CloseAction.minimize),
+              child: Text(s('close_minimize')),
+            ),
+          ],
         ),
       );
     },

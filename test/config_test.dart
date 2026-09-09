@@ -93,10 +93,12 @@ void main() {
       );
       expect(defaults.minimizeToTray, isFalse);
       expect(defaults.closeAction, CloseAction.exit);
+      expect(defaults.closeActionConfirmed, isFalse);
       await store.saveWindowPreferences(
         const WindowPreferences(
           minimizeToTray: true,
           closeAction: CloseAction.minimize,
+          closeActionConfirmed: true,
         ),
       );
       await store.saveAppearance(const Appearance(mode: AppThemeMode.dark));
@@ -105,15 +107,23 @@ void main() {
       final restored = WindowPreferences.fromSettings(settings);
       expect(restored.minimizeToTray, isTrue);
       expect(restored.closeAction, CloseAction.minimize);
+      expect(restored.closeActionConfirmed, isTrue);
       expect(settings['future_option'], 42);
       expect(settings['theme_mode'], 'dark');
       expect(settings['language'], 'en');
       final invalid = WindowPreferences.fromSettings({
         'minimize_to_tray': 'yes',
         'close_action': 'invalid',
+        'close_action_confirmed': true,
       });
       expect(invalid.minimizeToTray, isFalse);
       expect(invalid.closeAction, CloseAction.exit);
+      expect(invalid.closeActionConfirmed, isFalse);
+      expect(
+        WindowPreferences.fromSettings({'close_action': 'exit'})
+            .closeActionConfirmed,
+        isFalse,
+      );
     },
   );
   test('release version is consistently 0.x.x', () async {

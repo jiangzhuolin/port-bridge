@@ -27,10 +27,12 @@ class BridgeApp extends StatefulWidget {
 }
 
 class _BridgeAppState extends State<BridgeApp> {
+  final navigatorKey = GlobalKey<NavigatorState>();
   late final AppLifecycleListener lifecycle;
   @override
   void initState() {
     super.initState();
+    widget.controller.confirmCloseAction = _confirmCloseAction;
     lifecycle = AppLifecycleListener(
       onExitRequested: () async {
         if (widget.onExitRequested != null) return widget.onExitRequested!();
@@ -43,14 +45,29 @@ class _BridgeAppState extends State<BridgeApp> {
 
   @override
   void dispose() {
+    if (widget.controller.confirmCloseAction == _confirmCloseAction) {
+      widget.controller.confirmCloseAction = null;
+    }
     lifecycle.dispose();
     super.dispose();
+  }
+
+  Future<bool> _confirmCloseAction() async {
+    final dialogContext = navigatorKey.currentContext;
+    if (dialogContext == null || !mounted) return false;
+    return await showDialog<bool>(
+          context: dialogContext,
+          barrierDismissible: false,
+          builder: (_) => FirstCloseDialog(controller: widget.controller),
+        ) ??
+        false;
   }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.controller,
     builder: (context, _) => MaterialApp(
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'Port Bridge',
       theme: bridgeTheme(accent: widget.controller.appearance.accent),

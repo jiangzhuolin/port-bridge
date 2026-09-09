@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:port_bridge/application/bridge_controller.dart';
 import 'package:port_bridge/application/window_session.dart';
@@ -61,11 +63,85 @@ void main() {
     controller.dispose();
   });
 
+  for (final action in CloseAction.values) {
+    test(
+      'first close waits for one choice and immediately applies $action',
+      () async {
+        final choice = Completer<bool>();
+        final shown = Completer<void>();
+        var prompts = 0;
+        controller.confirmCloseAction = () {
+          prompts++;
+          shown.complete();
+          return choice.future;
+        };
+        final first = session.closeWindow();
+        final repeated = session.closeWindow();
+        await shown.future;
+        expect(prompts, 1);
+        expect(window.calls, ['show']);
+        expect(controller.closing, isFalse);
+        await controller.setWindowPreferences(
+          WindowPreferences(closeAction: action, closeActionConfirmed: true),
+        );
+        choice.complete(true);
+        await Future.wait([first, repeated]);
+        expect(
+          window.calls.last,
+          action == CloseAction.exit ? 'destroy' : 'minimize',
+        );
+        if (action == CloseAction.minimize) {
+          await session.closeWindow();
+          expect(prompts, 1);
+        }
+      },
+    );
+  }
+
+  test('cancel leaves forwarding alive and asks again next time', () async {
+    var prompts = 0;
+    controller.confirmCloseAction = () async {
+      prompts++;
+      return false;
+    };
+    await session.closeWindow();
+    await session.closeWindow();
+    expect(prompts, 2);
+    expect(window.calls, ['show', 'show']);
+    expect(controller.closing, isFalse);
+    expect(controller.windowPreferences.closeActionConfirmed, isFalse);
+    expect(releases, 0);
+  });
+
+  test(
+    'explicit exit remains available while the first-close dialog is open',
+    () async {
+      final choice = Completer<bool>();
+      final shown = Completer<void>();
+      controller.confirmCloseAction = () {
+        shown.complete();
+        return choice.future;
+      };
+      final pending = session.closeWindow();
+      await shown.future;
+      await session.exit();
+      expect(window.calls.last, 'destroy');
+      expect(releases, 1);
+      choice.complete(true);
+      await pending;
+      expect(window.calls.where((call) => call == 'destroy'), hasLength(1));
+    },
+  );
+
   for (final tray in [false, true]) {
     for (final action in CloseAction.values) {
       test('close $action with tray=$tray', () async {
         await controller.setWindowPreferences(
-          WindowPreferences(minimizeToTray: tray, closeAction: action),
+          WindowPreferences(
+            closeActionConfirmed: true,
+            minimizeToTray: tray,
+            closeAction: action,
+          ),
         );
         await session.closeWindow();
         if (action == CloseAction.exit) {
@@ -86,6 +162,7 @@ void main() {
     () async {
       await controller.setWindowPreferences(
         const WindowPreferences(
+          closeActionConfirmed: true,
           minimizeToTray: true,
           closeAction: CloseAction.minimize,
         ),
@@ -116,6 +193,7 @@ void main() {
       window.trayAvailable = false;
       await controller.setWindowPreferences(
         const WindowPreferences(
+          closeActionConfirmed: true,
           minimizeToTray: true,
           closeAction: CloseAction.minimize,
         ),
@@ -137,14 +215,19 @@ void main() {
     'language updates tray menu and disabling tray restores hidden window',
     () async {
       await controller.setWindowPreferences(
-        const WindowPreferences(minimizeToTray: true),
+        const WindowPreferences(
+          closeActionConfirmed: true,
+          minimizeToTray: true,
+        ),
       );
       await session.minimize();
       await controller.setLanguage('zh_CN');
       await session.minimize();
       expect(window.calls, contains('tray:zh_CN'));
       window.calls.clear();
-      await controller.setWindowPreferences(const WindowPreferences());
+      await controller.setWindowPreferences(
+        const WindowPreferences(closeActionConfirmed: true),
+      );
       await session.minimize(alreadyMinimized: true);
       expect(window.calls, ['show', 'removeTray']);
     },
@@ -153,7 +236,10 @@ void main() {
     'explicit settings exit works without a tray even when Close minimizes',
     () async {
       await controller.setWindowPreferences(
-        const WindowPreferences(closeAction: CloseAction.minimize),
+        const WindowPreferences(
+          closeActionConfirmed: true,
+          closeAction: CloseAction.minimize,
+        ),
       );
       await session.closeWindow();
       expect(controller.closing, isFalse);

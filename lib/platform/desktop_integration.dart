@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
 
-const appVersion = '0.2.1';
+const appVersion = '0.2.2';
 const appId = 'io.portbridge';
 
 class PlatformPaths {

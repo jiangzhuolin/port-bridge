@@ -25,7 +25,7 @@ Rules retain the Python release's version-1 JSON schema. Settings retain `en` an
 
 Flutter's standard Windows, macOS and Linux runners host the UI. Builds run on matching OS/CPU hosts, and artifact names include `x86_64` or `arm64`. `tool/build.dart` refuses a mismatched requested architecture. macOS builds may contain universal binaries produced by Xcode; the artifact suffix identifies the build/test host, not a promise that the other slice was tested.
 
-Login startup uses Windows Startup shortcuts, a macOS LaunchAgent, or Linux XDG autostart entries. Install/extract to a stable directory before enabling it. Moving the application requires toggling login startup off and on. Exit terminates forwarding; minimize keeps it running. `WindowSession` serializes native close/minimize/tray events through `window_manager` and `tray_manager`. Window preferences default to taskbar minimization and exit on Close. Tray initialization must succeed before hiding; Linux also checks for a StatusNotifier host through `gdbus`. Explicit tray Exit and application Quit shut down the engine, remove the icon and release the configuration lock.
+Login startup uses Windows Startup shortcuts, a macOS LaunchAgent, or Linux XDG autostart entries. Install/extract to a stable directory before enabling it. Moving the application requires toggling login startup off and on. Exit terminates forwarding; minimize keeps it running. `WindowSession` serializes native close/minimize/tray events through `window_manager` and `tray_manager`. Window preferences default to taskbar minimization. An unconfirmed Close opens a dialog; the action is executed only after its choice and confirmation flag are saved. Repeated close requests share one prompt; cancelling or a failed save keeps the application open. Explicitly choosing a close action in Settings also confirms it. Tray initialization must succeed before hiding; Linux also checks for a StatusNotifier host through `gdbus`. Explicit tray Exit and application Quit shut down the engine, remove the icon and release the configuration lock.
 
 Windows distribution is an installation-free directory containing `port_bridge.exe`, Flutter DLLs, assets and app-local Visual C++ redistributables. `tool/windows_package.dart` locates and includes the matching VC runtime; `tool/build.dart` copies the complete bundle and documentation into `dist/` without an archive. Keep all files together when moving or upgrading the application. The standard Flutter executable is the entry point for both direct launch and login startup.
 
@@ -35,6 +35,6 @@ Tests cover real sockets, half-close, concurrent binary payloads, bounded buffer
 
 ## Versioning
 
-Releases use `0.x.x`; the current version is `0.2.1`. Update `pubspec.yaml` and `appVersion` together. Packaging rejects mismatched versions or a nonzero major version.
+Releases use `0.x.x`; the current version is `0.2.2`. Update `pubspec.yaml` and `appVersion` together. Packaging rejects mismatched versions or a nonzero major version.
 
 On Windows, Flutter intercepts the first `WM_CLOSE` before native plugins. The framework exit callback allows the replay without shutting down the controller; `window_manager` then forwards it to `WindowSession`, which applies the configured close action. The native window test covers this ordering with an active TCP connection.

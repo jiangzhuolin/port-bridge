@@ -10,6 +10,8 @@ class Strings {
       : error.toString();
 
   static const en = <String, String>{
+    'firstCloseTitle': 'What should the Close button do?',
+    'firstCloseHint': 'Exit stops forwarding and closes the application. Minimize keeps forwarding in the taskbar or tray. Your choice applies now and will be remembered. You can change it later in Settings.',
     'windowBehavior': 'Window behavior',
     'minimizeToTray': 'Minimize to system tray',
     'minimizeToTrayHint':
@@ -132,6 +134,9 @@ class Strings {
     'close': 'Close',
   };
   static const zh = <String, String>{
+    'firstCloseTitle': '点击关闭按钮时要执行什么操作？',
+    'firstCloseHint':
+        '直接退出会停止转发并关闭软件；最小化会保留在任务栏或托盘中继续转发。你的选择将立即执行并自动记住，以后可在设置中修改。',
     'windowBehavior': '窗口行为',
     'minimizeToTray': '最小化到托盘',
     'minimizeToTrayHint': '最小化时隐藏窗口，点击托盘图标可恢复窗口。',

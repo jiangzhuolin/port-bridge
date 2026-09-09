@@ -34,6 +34,7 @@ class BridgeController extends ChangeNotifier {
   WindowPreferences windowPreferences = const WindowPreferences();
   Object? windowError;
   Future<void> Function()? requestExit;
+  Future<bool> Function()? confirmCloseAction;
   String? selectedId;
   Object? configError, settingsError;
   bool autostart = false,

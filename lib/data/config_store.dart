@@ -73,6 +73,7 @@ class ConfigStore {
     final settings = await loadSettings();
     settings['minimize_to_tray'] = preferences.minimizeToTray;
     settings['close_action'] = preferences.closeAction.name;
+    settings['close_action_confirmed'] = preferences.closeActionConfirmed;
     await _write(settingsFile, settings);
   }
 
