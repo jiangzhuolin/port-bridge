@@ -1,74 +1,83 @@
 import 'package:flutter/material.dart';
 
-const ink = Color(0xFF172C3B);
-const muted = Color(0xFF70828E);
-const accent = Color(0xFF087F8C);
-const canvas = Color(0xFFF3F6F8);
-const border = Color(0xFFE2E9ED);
+import '../domain/appearance.dart';
 
-ThemeData bridgeTheme() => ThemeData(
-  useMaterial3: true,
-  colorScheme: ColorScheme.fromSeed(
-    seedColor: accent,
-    primary: accent,
-    surface: Colors.white,
-  ),
-  scaffoldBackgroundColor: canvas,
-  fontFamilyFallback: const [
-    'Inter',
-    'Segoe UI',
-    'PingFang SC',
-    'Microsoft YaHei',
-    'Noto Sans CJK SC',
-  ],
-  textTheme: const TextTheme(
-    headlineLarge: TextStyle(
-      fontSize: 32,
-      fontWeight: FontWeight.w700,
-      color: ink,
-      letterSpacing: -1,
+Color accentSeed(AppAccent accent) => switch (accent) {
+  AppAccent.teal => const Color(0xFF087F8C),
+  AppAccent.blue => const Color(0xFF2563EB),
+  AppAccent.violet => const Color(0xFF7C3AED),
+  AppAccent.amber => const Color(0xFFAF6500),
+};
+
+ThemeData bridgeTheme({
+  Brightness brightness = Brightness.light,
+  AppAccent accent = AppAccent.teal,
+}) {
+  final colors = ColorScheme.fromSeed(
+    seedColor: accentSeed(accent),
+    brightness: brightness,
+  );
+  return ThemeData(
+    useMaterial3: true,
+    brightness: brightness,
+    colorScheme: colors,
+    scaffoldBackgroundColor: colors.surfaceContainerLow,
+    fontFamilyFallback: const [
+      'Inter',
+      'Segoe UI',
+      'PingFang SC',
+      'Microsoft YaHei',
+      'Noto Sans CJK SC',
+    ],
+    textTheme: TextTheme(
+      headlineLarge: TextStyle(
+        fontSize: 32,
+        fontWeight: FontWeight.w700,
+        color: colors.onSurface,
+        letterSpacing: -1,
+      ),
+      titleLarge: TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.w700,
+        color: colors.onSurface,
+      ),
+      titleMedium: TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w600,
+        color: colors.onSurface,
+      ),
+      bodyMedium: TextStyle(fontSize: 14, color: colors.onSurface),
+      bodySmall: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
     ),
-    titleLarge: TextStyle(
-      fontSize: 20,
-      fontWeight: FontWeight.w700,
-      color: ink,
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 17),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
     ),
-    titleMedium: TextStyle(
-      fontSize: 15,
-      fontWeight: FontWeight.w600,
-      color: ink,
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 17),
+        side: BorderSide(color: colors.outlineVariant),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
     ),
-    bodyMedium: TextStyle(fontSize: 14, color: ink),
-    bodySmall: TextStyle(fontSize: 12, color: muted),
-  ),
-  filledButtonTheme: FilledButtonThemeData(
-    style: FilledButton.styleFrom(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 17),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: colors.surfaceContainerHighest,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: colors.outlineVariant),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: colors.outlineVariant),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
     ),
-  ),
-  outlinedButtonTheme: OutlinedButtonThemeData(
-    style: OutlinedButton.styleFrom(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 17),
-      side: const BorderSide(color: border),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-    ),
-  ),
-  inputDecorationTheme: InputDecorationTheme(
-    filled: true,
-    fillColor: const Color(0xFFF7F9FA),
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: const BorderSide(color: border),
-    ),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: const BorderSide(color: border),
-    ),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
-  ),
-  dividerColor: border,
-);
+    dividerColor: colors.outlineVariant,
+  );
+}
 
 String humanBytes(int bytes) {
   var value = bytes.toDouble();

@@ -32,6 +32,16 @@ Future<void> command(String executable, List<String> args) async {
 
 /// Build on the target OS and CPU. Never label an emulated x64 build as ARM64.
 Future<void> main(List<String> args) async {
+  final manifest = await File('pubspec.yaml').readAsString();
+  final version = RegExp(
+    r'^version: (\S+)',
+    multiLine: true,
+  ).firstMatch(manifest)?.group(1)?.split('+').first;
+  if (!RegExp(r'^0\.\d+\.\d+$').hasMatch(appVersion) || version != appVersion) {
+    throw StateError(
+      'Use matching 0.x.x versions in pubspec.yaml and appVersion.',
+    );
+  }
   final os = Platform.operatingSystem;
   final arch = NativeDesktopIntegration.architecture;
   if (!['windows', 'macos', 'linux'].contains(os) ||
@@ -40,6 +50,16 @@ Future<void> main(List<String> args) async {
   }
   final options = [...args];
   final skipBuild = options.remove('--skip-build');
+  var outputRoot = 'dist';
+  final outputIndex = options.indexOf('--output-root');
+  if (outputIndex >= 0) {
+    if (outputIndex + 1 >= options.length ||
+        options[outputIndex + 1].startsWith('--')) {
+      throw ArgumentError('Provide a directory after --output-root');
+    }
+    outputRoot = options[outputIndex + 1];
+    options.removeRange(outputIndex, outputIndex + 2);
+  }
   if (options.isNotEmpty &&
       (options.length != 2 ||
           options.first != '--target-arch' ||
@@ -66,7 +86,7 @@ Future<void> main(List<String> args) async {
     await includeWindowsRuntime(source, Directory('build/windows/$cpu'), arch);
   }
   final name = 'port-bridge-$appVersion-$os-$arch';
-  final dist = await Directory('dist').create(recursive: true);
+  final dist = await Directory(outputRoot).create(recursive: true);
   final stage = await Directory.systemTemp.createTemp('port-bridge-package-');
   try {
     final bundle = await Directory('${stage.path}/$name').create();

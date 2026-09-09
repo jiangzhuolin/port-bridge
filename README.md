@@ -4,7 +4,7 @@ English | [简体中文](README.zh-CN.md)
 
 A lightweight desktop application for managing TCP port forwarding. Connect local listening ports to remote services, manage several routes in one place, and inspect connection activity without writing forwarding commands.
 
-Port Bridge 2 is implemented entirely in **Flutter and Dart**. Python is no longer required.
+Port Bridge is implemented entirely in **Flutter and Dart**. Python is no longer required.
 
 ![Port Bridge desktop interface](docs/images/overview-en.png)
 
@@ -14,7 +14,9 @@ Port Bridge 2 is implemented entirely in **Flutter and Dart**. Python is no long
 - Start or stop individual rules, or all rules together.
 - IPv4/IPv6 listeners and IP address or hostname targets.
 - Live connection counts, traffic totals and activity logs.
+- Light, dark or system theme, with teal, blue, violet or amber accents; preferences apply immediately and persist.
 - English by default; switch to Simplified Chinese in Settings without restarting forwarding.
+- Optional minimize to tray and configurable close-button behavior (minimize or exit).
 - Optional startup at desktop login and automatic activation of selected rules.
 - Existing version-1 rule files and language preferences remain compatible.
 
@@ -47,7 +49,7 @@ flutter run -d windows
 Linux development packages (Ubuntu/Debian):
 
 ```sh
-sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev libayatana-appindicator3-dev libglib2.0-bin liblzma-dev
 ```
 
 Linux ARM64 has no preassembled stable SDK archive for the pinned release. Bootstrap the SDK from the official source on an ARM64 host:
@@ -66,7 +68,9 @@ Use a desktop session. On a headless Linux test host, install `xvfb` and `xauth`
 2. Start the rule. Clients connecting to the listener will be forwarded to the target.
 3. Open **Settings** to choose English or 简体中文 and configure desktop login startup.
 
-`127.0.0.1` accepts local connections only. `0.0.0.0` listens on all IPv4 interfaces; `::` listens on IPv6 interfaces. Choose an interface appropriate for the intended clients and firewall configuration. Minimize to keep forwarding; exiting closes every connection. Stop a running rule before editing or deleting it.
+`127.0.0.1` accepts local connections only. `0.0.0.0` listens on all IPv4 interfaces; `::` listens on IPv6 interfaces. Choose an interface appropriate for the intended clients and firewall configuration. Minimize to keep forwarding. Settings controls whether minimizing hides the window in the tray and whether Close minimizes or exits. Defaults are taskbar minimization and exit on Close; the tray menu always offers Show window and Exit application. The Settings page also provides an explicit Exit application button, including when the tray is disabled. Exiting closes every connection. Stop a running rule before editing or deleting it.
+
+Linux tray integration needs a StatusNotifier/AppIndicator host. GNOME may need the [AppIndicator extension](https://pub.dev/packages/tray_manager#not-showing-in-gnome). If a tray host is unavailable or initialization fails, the window stays accessible in the taskbar.
 
 ## Build a distributable
 
@@ -76,11 +80,15 @@ dart run tool/build.dart --target-arch x86_64
 # On an ARM64 host: dart run tool/build.dart --target-arch arm64
 ```
 
-The script compiles a release build and writes it to `dist/`. Windows produces an **installation-free directory**, such as `port-bridge-2.0.0-windows-x86_64/`. Open that folder and double-click `port_bridge.exe`; no installer, archive extraction, Python/Dart installation or administrator rights are required. Keep the adjacent DLLs and `data` folder together with the EXE when moving or distributing the application. The bundle includes the Flutter libraries, assets and app-local Visual C++ runtime. Windows code signing is not configured.
+Release versions use `0.x.x` (current: `0.2.1`). The build script checks that `pubspec.yaml` and the application version match.
 
-macOS and Linux produce tar.gz archives, for example `port-bridge-2.0.0-linux-x86_64.tar.gz`, including the complete bundle, documentation and `build-info.json`. Extract the whole archive; these platforms require the adjacent Flutter libraries and data. macOS distribution signing/notarization is not configured.
+The script compiles a release build and writes it to `dist/`. Windows produces an **installation-free directory**, such as `port-bridge-0.2.1-windows-x86_64/`. Open that folder and double-click `port_bridge.exe`; no installer, archive extraction, Python/Dart installation or administrator rights are required. Keep the adjacent DLLs and `data` folder together with the EXE when moving or distributing the application. The bundle includes the Flutter libraries, assets and app-local Visual C++ runtime. Windows code signing is not configured.
+
+macOS and Linux produce tar.gz archives, for example `port-bridge-0.2.1-linux-x86_64.tar.gz`, including the complete bundle, documentation and `build-info.json`. Extract the whole archive; these platforms require the adjacent Flutter libraries and data. macOS distribution signing/notarization is not configured.
 
 Launch `port_bridge.exe` on Windows, `Port Bridge.app` on macOS or `./port_bridge` on Linux. Keep the application in a stable folder before enabling login startup. Close the application before replacing its complete directory during upgrades. If you move the directory, disable and re-enable login startup to update its path. The Linux `.desktop` template requires the executable on PATH or an absolute `Exec` path before installing it into your application menu.
+
+Use `--output-root dist/next` to build into a separate output folder while another build is running. Windows native window/tray behavior can be checked with `./tool/verify_window_behavior.ps1 -Executable <path-to-port_bridge.exe>` in an interactive desktop session.
 
 ## Configuration and upgrading
 
@@ -92,7 +100,7 @@ Launch `port_bridge.exe` on Windows, `Port Bridge.app` on macOS or `./port_bridg
 
 `XDG_CONFIG_HOME` overrides the base directory on every platform. Existing Windows/macOS configurations under `~/.config/port-bridge` are reused when the native location is empty. `rules.json` retains the version-1 schema; `settings.json` retains the `en` and `zh_CN` language codes. Invalid files are reported rather than silently overwritten.
 
-Close the old Python application before opening version 2. After placing the Flutter application in its final folder, toggle login startup off and on to replace any old Python launcher. Existing Python code remains available in Git history.
+Close the old Python application before opening the Flutter version. After placing the Flutter application in its final folder, toggle login startup off and on to replace any old Python launcher. Existing Python code remains available in Git history.
 
 ## Development
 

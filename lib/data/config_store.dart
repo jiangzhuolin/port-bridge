@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../domain/rule.dart';
+import '../domain/appearance.dart';
+import '../domain/window_preferences.dart';
 
 class ConfigStore {
   ConfigStore(this.directory);
@@ -57,6 +59,20 @@ class ConfigStore {
     }
     final settings = await loadSettings();
     settings['language'] = language;
+    await _write(settingsFile, settings);
+  }
+
+  Future<void> saveAppearance(Appearance appearance) async {
+    final settings = await loadSettings();
+    settings['theme_mode'] = appearance.mode.name;
+    settings['accent_color'] = appearance.accent.name;
+    await _write(settingsFile, settings);
+  }
+
+  Future<void> saveWindowPreferences(WindowPreferences preferences) async {
+    final settings = await loadSettings();
+    settings['minimize_to_tray'] = preferences.minimizeToTray;
+    settings['close_action'] = preferences.closeAction.name;
     await _write(settingsFile, settings);
   }
 

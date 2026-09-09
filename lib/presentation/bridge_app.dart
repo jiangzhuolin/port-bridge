@@ -6,15 +6,22 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../application/bridge_controller.dart';
 import '../domain/rule.dart';
+import '../domain/appearance.dart';
 import '../l10n/strings.dart';
 import '../platform/desktop_integration.dart';
 import 'dialogs.dart';
 import 'theme.dart';
 
 class BridgeApp extends StatefulWidget {
-  const BridgeApp({super.key, required this.controller, this.onShutdown});
+  const BridgeApp({
+    super.key,
+    required this.controller,
+    this.onShutdown,
+    this.onExitRequested,
+  });
   final BridgeController controller;
   final Future<void> Function()? onShutdown;
+  final Future<AppExitResponse> Function()? onExitRequested;
   @override
   State<BridgeApp> createState() => _BridgeAppState();
 }
@@ -26,6 +33,7 @@ class _BridgeAppState extends State<BridgeApp> {
     super.initState();
     lifecycle = AppLifecycleListener(
       onExitRequested: () async {
+        if (widget.onExitRequested != null) return widget.onExitRequested!();
         await widget.controller.shutdown();
         await widget.onShutdown?.call();
         return AppExitResponse.exit;
@@ -45,11 +53,20 @@ class _BridgeAppState extends State<BridgeApp> {
     builder: (context, _) => MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Port Bridge',
-      theme: bridgeTheme(),
+      theme: bridgeTheme(accent: widget.controller.appearance.accent),
+      darkTheme: bridgeTheme(
+        brightness: Brightness.dark,
+        accent: widget.controller.appearance.accent,
+      ),
+      themeMode: switch (widget.controller.appearance.mode) {
+        AppThemeMode.system => ThemeMode.system,
+        AppThemeMode.light => ThemeMode.light,
+        AppThemeMode.dark => ThemeMode.dark,
+      },
       locale: widget.controller.language == 'zh_CN'
-          ? const Locale('zh', 'CN')
-          : const Locale('en'),
-      supportedLocales: const [Locale('en'), Locale('zh', 'CN')],
+          ? Locale('zh', 'CN')
+          : Locale('en'),
+      supportedLocales: [Locale('en'), Locale('zh', 'CN')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       home: BridgeHome(controller: widget.controller),
     ),
@@ -111,11 +128,13 @@ class BridgeHome extends StatelessWidget {
                                     .textTheme
                                     .headlineLarge,
                               ),
-                              const SizedBox(height: 8),
+                              SizedBox(height: 8),
                               Text(
                                 s('subtitle'),
-                                style: const TextStyle(
-                                  color: muted,
+                                style: TextStyle(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
                                   height: 1.5,
                                 ),
                               ),
@@ -124,33 +143,42 @@ class BridgeHome extends StatelessWidget {
                         ),
                         if (!wide)
                           IconButton(
-                            key: const ValueKey('settingsButton'),
+                            key: ValueKey('settingsButton'),
                             tooltip: s('settings'),
                             onPressed: () => settings(context),
-                            icon: const Icon(Icons.settings_outlined),
+                            icon: Icon(Icons.settings_outlined),
                           ),
                       ],
                     ),
-                    const SizedBox(height: 28),
+                    SizedBox(height: 28),
                     _metrics(context),
-                    const SizedBox(height: 28),
+                    SizedBox(height: 28),
                     if (controller.configError != null)
-                      _warning(s('configProtected'), controller.configError!),
+                      _warning(
+                        context,
+                        s('configProtected'),
+                        controller.configError!,
+                      ),
                     if (controller.settingsError != null)
                       _warning(
+                        context,
                         s('settingsProtected'),
                         controller.settingsError!,
                       ),
                     if (controller.engineFailed)
-                      _warning(s('engineStopped'), ''),
+                      _warning(context, s('engineStopped'), ''),
                     Expanded(flex: 3, child: _rulePanel(context)),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
                     Expanded(flex: 2, child: _logPanel(context)),
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     Row(
                       children: [
-                        const Icon(Icons.info_outline, size: 14, color: muted),
-                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.info_outline,
+                          size: 14,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             s('footer'),
@@ -170,37 +198,41 @@ class BridgeHome extends StatelessWidget {
   );
 
   Widget _sidebar(BuildContext context) => Material(
-    color: Colors.white,
+    color: Theme.of(context).colorScheme.surface,
     child: Container(
       width: 222,
-      decoration: const BoxDecoration(
-        border: Border(right: BorderSide(color: border)),
+      decoration: BoxDecoration(
+        border: Border(
+          right: BorderSide(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+        ),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 32),
+        padding: EdgeInsets.symmetric(horizontal: 22, vertical: 32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(9),
+                  padding: EdgeInsets.all(9),
                   decoration: BoxDecoration(
-                    color: accent,
+                    color: Theme.of(context).colorScheme.primary,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.alt_route_rounded,
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.onPrimary,
                     size: 24,
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     s('appName'),
-                    style: const TextStyle(
-                      color: ink,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
                     ),
@@ -208,72 +240,85 @@ class BridgeHome extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             Text(s('tagline'), style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 48),
+            SizedBox(height: 48),
             Text(
               s('workspace'),
-              style: const TextStyle(
-                color: muted,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: 10,
                 letterSpacing: 1.6,
                 fontWeight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             Container(
               decoration: BoxDecoration(
-                color: const Color(0xFFE9F5F5),
+                color: Theme.of(context).colorScheme.primaryContainer,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                leading: const Icon(
+                contentPadding: EdgeInsets.symmetric(horizontal: 12),
+                leading: Icon(
                   Icons.account_tree_outlined,
-                  color: accent,
+                  color: Theme.of(context).colorScheme.primary,
                   size: 20,
                 ),
                 title: Text(
                   s('rules'),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: accent,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             ListTile(
-              key: const ValueKey('settingsButton'),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-              leading: const Icon(Icons.tune_rounded, color: muted, size: 20),
+              key: ValueKey('settingsButton'),
+              contentPadding: EdgeInsets.symmetric(horizontal: 12),
+              leading: Icon(
+                Icons.tune_rounded,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                size: 20,
+              ),
               title: Text(
                 s('settings'),
-                style: const TextStyle(fontSize: 13, color: muted),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
               onTap: () => settings(context),
             ),
-            const Spacer(),
-            const Divider(),
-            const SizedBox(height: 16),
+            Spacer(),
+            Divider(),
+            SizedBox(height: 16),
             Text(
               s('desktopApp'),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 10,
-                color: muted,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 letterSpacing: 1.4,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               controller.desktop.runtimeLabel,
-              style: const TextStyle(fontSize: 12, color: ink),
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
-            const SizedBox(height: 6),
-            const Text(
+            SizedBox(height: 6),
+            Text(
               'v$appVersion',
-              style: TextStyle(fontSize: 11, color: muted),
+              style: TextStyle(
+                fontSize: 11,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -303,13 +348,15 @@ class BridgeHome extends StatelessWidget {
     return Row(
       children: [
         for (var i = 0; i < items.length; i++) ...[
-          if (i > 0) const SizedBox(width: 14),
+          if (i > 0) SizedBox(width: 14),
           Expanded(
             child: Container(
-              padding: const EdgeInsets.all(18),
+              padding: EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(color: border),
+                color: Theme.of(context).colorScheme.surface,
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Column(
@@ -317,14 +364,20 @@ class BridgeHome extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(items[i].$3, color: accent, size: 18),
-                      const SizedBox(width: 8),
+                      Icon(
+                        items[i].$3,
+                        color: Theme.of(context).colorScheme.primary,
+                        size: 18,
+                      ),
+                      SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           items[i].$1,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 10,
-                            color: muted,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.7,
                           ),
@@ -332,13 +385,13 @@ class BridgeHome extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  SizedBox(height: 14),
                   FittedBox(
                     child: Text(
                       items[i].$2,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 26,
-                        color: ink,
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -353,11 +406,12 @@ class BridgeHome extends StatelessWidget {
   }
 
   Widget _rulePanel(BuildContext context) => _panel(
+    context,
     Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.all(18),
+          padding: EdgeInsets.all(18),
           child: Wrap(
             alignment: WrapAlignment.spaceBetween,
             crossAxisAlignment: WrapCrossAlignment.center,
@@ -389,12 +443,12 @@ class BridgeHome extends StatelessWidget {
                     child: Text(s('startAll')),
                   ),
                   FilledButton.icon(
-                    key: const ValueKey('addRule'),
+                    key: ValueKey('addRule'),
                     onPressed:
                         controller.configError != null || controller.saving
                         ? null
                         : () => ruleDialog(context),
-                    icon: const Icon(Icons.add, size: 18),
+                    icon: Icon(Icons.add, size: 18),
                     label: Text(s('addRule')),
                   ),
                 ],
@@ -402,33 +456,38 @@ class BridgeHome extends StatelessWidget {
             ],
           ),
         ),
-        const Divider(height: 1),
+        Divider(height: 1),
         Expanded(
           child: controller.rules.isEmpty
               ? Center(
                   child: SingleChildScrollView(
                     child: Padding(
-                      padding: const EdgeInsets.all(22),
+                      padding: EdgeInsets.all(22),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.add_link_rounded,
-                            color: accent,
+                            color: Theme.of(context).colorScheme.primary,
                             size: 46,
                           ),
-                          const SizedBox(height: 12),
+                          SizedBox(height: 12),
                           Text(
                             s('emptyTitle'),
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
-                          const SizedBox(height: 8),
+                          SizedBox(height: 8),
                           ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 450),
+                            constraints: BoxConstraints(maxWidth: 450),
                             child: Text(
                               s('emptyBody'),
                               textAlign: TextAlign.center,
-                              style: const TextStyle(color: muted, height: 1.5),
+                              style: TextStyle(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                                height: 1.5,
+                              ),
                             ),
                           ),
                         ],
@@ -441,8 +500,8 @@ class BridgeHome extends StatelessWidget {
         if (controller.selected != null)
           Container(
             width: double.infinity,
-            color: const Color(0xFFF8FAFB),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             child: Text(
               '${controller.selected!.name}  ·  ${s('totalConnections')}: ${controller.metrics[controller.selectedId]?['total'] ?? 0}  /  ${s('errors')}: ${controller.metrics[controller.selectedId]?['errors'] ?? 0}',
               style: Theme.of(context).textTheme.bodySmall,
@@ -465,9 +524,9 @@ class BridgeHome extends StatelessWidget {
             headingRowHeight: 44,
             dataRowMinHeight: 70,
             dataRowMaxHeight: 76,
-            headingTextStyle: const TextStyle(
+            headingTextStyle: TextStyle(
               fontSize: 10,
-              color: muted,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.5,
             ),
@@ -487,10 +546,10 @@ class BridgeHome extends StatelessWidget {
                   metric = controller.metrics[rule.id] ?? {};
               final busy = controller.busy(rule.id);
               final color = state == 'running'
-                  ? accent
+                  ? Theme.of(context).colorScheme.primary
                   : state == 'failed'
-                  ? Colors.red
-                  : muted;
+                  ? Theme.of(context).colorScheme.error
+                  : Theme.of(context).colorScheme.onSurfaceVariant;
               return DataRow(
                 selected: controller.selectedId == rule.id,
                 onSelectChanged: (_) => controller.select(rule.id),
@@ -502,7 +561,7 @@ class BridgeHome extends StatelessWidget {
                         rule.name,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 13,
                         ),
@@ -516,18 +575,23 @@ class BridgeHome extends StatelessWidget {
                       children: [
                         Text(
                           rule.listenEndpoint,
-                          style: const TextStyle(fontSize: 12),
+                          style: TextStyle(fontSize: 12),
                         ),
                         Text(
                           '→ ${rule.targetEndpoint}',
-                          style: const TextStyle(fontSize: 12, color: muted),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
                   ),
                   DataCell(
                     Container(
-                      padding: const EdgeInsets.symmetric(
+                      padding: EdgeInsets.symmetric(
                         horizontal: 10,
                         vertical: 5,
                       ),
@@ -548,9 +612,9 @@ class BridgeHome extends StatelessWidget {
                   DataCell(
                     Text(
                       '${humanBytes(metric['up'] as int? ?? 0)}\n${humanBytes(metric['down'] as int? ?? 0)}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: muted,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         height: 1.7,
                       ),
                     ),
@@ -561,7 +625,9 @@ class BridgeHome extends StatelessWidget {
                           ? Icons.check_circle_outline
                           : Icons.remove,
                       size: 18,
-                      color: rule.autoStart ? accent : muted,
+                      color: rule.autoStart
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                   DataCell(
@@ -586,7 +652,7 @@ class BridgeHome extends StatelessWidget {
                             busy
                                 ? Icons.stop_circle_outlined
                                 : Icons.play_circle_outline,
-                            color: accent,
+                            color: Theme.of(context).colorScheme.primary,
                             size: 22,
                           ),
                         ),
@@ -630,16 +696,21 @@ class BridgeHome extends StatelessWidget {
   );
 
   Widget _logPanel(BuildContext context) => _panel(
+    context,
     Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 10, 12, 10),
+          padding: EdgeInsets.fromLTRB(20, 10, 12, 10),
           child: Row(
             children: [
-              const Icon(Icons.terminal_rounded, size: 19, color: muted),
-              const SizedBox(width: 10),
+              Icon(
+                Icons.terminal_rounded,
+                size: 19,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              SizedBox(width: 10),
               Text(s('logs'), style: Theme.of(context).textTheme.titleMedium),
-              const Spacer(),
+              Spacer(),
               TextButton(
                 onPressed: controller.clearLogs,
                 child: Text(s('clear')),
@@ -647,21 +718,20 @@ class BridgeHome extends StatelessWidget {
             ],
           ),
         ),
-        const Divider(height: 1),
+        Divider(height: 1),
         Expanded(
           child: controller.logs.isEmpty
               ? Center(
                   child: Text(
                     s('noLogs'),
-                    style: const TextStyle(color: muted),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 )
               : ListView.builder(
                   reverse: true,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
+                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   itemCount: controller.logs.length,
                   itemBuilder: (context, index) {
                     final log =
@@ -669,25 +739,27 @@ class BridgeHome extends StatelessWidget {
                     final time =
                         '${log.time.hour.toString().padLeft(2, '0')}:${log.time.minute.toString().padLeft(2, '0')}:${log.time.second.toString().padLeft(2, '0')}';
                     return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 5),
+                      padding: EdgeInsets.symmetric(vertical: 5),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             time,
-                            style: const TextStyle(
-                              color: muted,
+                            style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                               fontSize: 11,
                               fontFeatures: [FontFeature.tabularFigures()],
                             ),
                           ),
-                          const SizedBox(width: 18),
+                          SizedBox(width: 18),
                           Expanded(
                             child: Text(
                               '[${log.name ?? s('application')}]  ${s(log.code)}${log.detail.isEmpty ? '' : '  ${log.detail}'}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
-                                color: ink,
+                                color: Theme.of(context).colorScheme.onSurface,
                                 height: 1.5,
                               ),
                             ),
@@ -702,20 +774,23 @@ class BridgeHome extends StatelessWidget {
     ),
   );
 
-  Widget _panel(Widget child) => Container(
+  Widget _panel(BuildContext context, Widget child) => Container(
     clipBehavior: Clip.antiAlias,
     decoration: BoxDecoration(
-      color: Colors.white,
-      border: Border.all(color: border),
+      color: Theme.of(context).colorScheme.surface,
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       borderRadius: BorderRadius.circular(14),
     ),
     child: child,
   );
-  Widget _warning(String title, Object error) => Padding(
-    padding: const EdgeInsets.only(bottom: 14),
+  Widget _warning(BuildContext context, String title, Object error) => Padding(
+    padding: EdgeInsets.only(bottom: 14),
     child: Text(
       '$title${error.toString().isEmpty ? '' : '\n$error'}',
-      style: const TextStyle(color: Colors.red, fontSize: 12),
+      style: TextStyle(
+        color: Theme.of(context).colorScheme.error,
+        fontSize: 12,
+      ),
     ),
   );
 }

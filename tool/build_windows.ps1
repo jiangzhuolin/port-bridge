@@ -1,6 +1,7 @@
 param(
     [switch]$StandaloneToolchain,
-    [ValidateSet('x64', 'arm64')][string]$Architecture
+    [ValidateSet('x64', 'arm64')][string]$Architecture,
+    [string]$OutputRoot = 'dist'
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
@@ -43,9 +44,9 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Windows compilation failed' }
         & cmake.exe --install $output --config Release
         if ($LASTEXITCODE -ne 0) { throw 'Windows bundle installation failed' }
-        & dart.bat run tool/build.dart --skip-build --target-arch $targetArchitecture
+        & dart.bat run tool/build.dart --skip-build --target-arch $targetArchitecture --output-root $OutputRoot
     } else {
-        & dart.bat run tool/build.dart --target-arch $targetArchitecture
+        & dart.bat run tool/build.dart --target-arch $targetArchitecture --output-root $OutputRoot
     }
     if ($LASTEXITCODE -ne 0) { throw 'Windows portable directory packaging failed' }
 } finally {

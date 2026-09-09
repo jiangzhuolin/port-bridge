@@ -4,7 +4,7 @@
 
 一个用于管理 TCP 端口转发的轻量桌面应用。将本地监听端口连接到目标服务，在一个界面中管理多条转发规则并查看连接活动，无需手动编写转发命令。
 
-Port Bridge 2 完全使用 **Flutter 与 Dart** 实现，不再需要 Python 运行时。
+Port Bridge 完全使用 **Flutter 与 Dart** 实现，不再需要 Python 运行时。
 
 ![Port Bridge 桌面界面](docs/images/overview-zh-CN.png)
 
@@ -14,7 +14,9 @@ Port Bridge 2 完全使用 **Flutter 与 Dart** 实现，不再需要 Python 运
 - 单独或批量启动、停止转发。
 - 支持 IPv4/IPv6 监听，目标可填写 IP 地址或主机名。
 - 实时查看连接数、传输量和活动日志。
+- 支持浅色、深色或跟随系统主题，以及青绿、蓝色、紫色、琥珀配色；切换立即生效并自动保存。
 - 默认英文，可在设置中切换简体中文，无需重启转发。
+- 可选最小化到托盘，点击关闭时可选择最小化或直接退出。
 - 可选桌面登录启动，以及随应用自动启动指定规则。
 - 兼容旧版 version-1 规则文件和语言偏好。
 
@@ -47,7 +49,7 @@ flutter run -d windows
 Ubuntu/Debian 开发依赖：
 
 ```sh
-sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev libayatana-appindicator3-dev libglib2.0-bin liblzma-dev
 ```
 
 固定的 Flutter 版本没有预组装的 Linux ARM64 稳定版 SDK 压缩包，可在 ARM64 主机上从官方源码引导安装：
@@ -66,7 +68,9 @@ flutter doctor -v
 2. 启动规则。连接监听端口的客户端流量将被转发到目标。
 3. 在“设置”中选择 English 或简体中文，并配置桌面登录启动。
 
-`127.0.0.1` 仅接受本机连接；`0.0.0.0` 监听所有 IPv4 接口；`::` 监听 IPv6 接口。根据目标客户端与防火墙配置选择监听接口。最小化后继续转发，退出则关闭所有连接。编辑或删除运行中的规则前需要先停止。
+`127.0.0.1` 仅接受本机连接；`0.0.0.0` 监听所有 IPv4 接口；`::` 监听 IPv6 接口。根据目标客户端与防火墙配置选择监听接口。最小化后继续转发。在设置中可选择是否最小化到托盘，以及点击关闭时最小化还是退出。默认最小化到任务栏、点击关闭直接退出；托盘菜单始终提供“显示窗口”和“退出软件”。设置页也提供“退出软件”按钮，即使关闭托盘也可直接退出。退出会关闭所有连接。编辑或删除运行中的规则前需要先停止。
+
+Linux 托盘需要 StatusNotifier/AppIndicator 支持，GNOME 可能需要启用 [AppIndicator 扩展](https://pub.dev/packages/tray_manager#not-showing-in-gnome)。托盘不可用或初始化失败时，窗口会保留在任务栏。
 
 ## 构建发布包
 
@@ -76,11 +80,15 @@ dart run tool/build.dart --target-arch x86_64
 # ARM64 主机使用：dart run tool/build.dart --target-arch arm64
 ```
 
-脚本编译 release 版本并输出到 `dist/`。Windows 输出**免安装目录**，例如 `port-bridge-2.0.0-windows-x86_64/`。打开目录，双击 `port_bridge.exe` 即可，无需安装、解压压缩包、安装 Python/Dart 或使用管理员权限。移动或分发应用时，请保留 EXE 旁边的 DLL 和 `data` 文件夹。目录已包含 Flutter 库、资源与 Visual C++ 运行库。Windows 代码签名尚未配置。
+版本号统一使用 `0.x.x`，当前为 `0.2.1`；构建脚本会检查 `pubspec.yaml` 和应用版本是否一致。
 
-macOS 与 Linux 使用 tar.gz，例如 `port-bridge-2.0.0-linux-x86_64.tar.gz`。压缩包包含完整应用、说明文档与 `build-info.json`，请完整解压，这些平台的执行文件仍依赖旁边的 Flutter 库和数据。macOS 发布签名与公证尚未配置。
+脚本编译 release 版本并输出到 `dist/`。Windows 输出**免安装目录**，例如 `port-bridge-0.2.1-windows-x86_64/`。打开目录，双击 `port_bridge.exe` 即可，无需安装、解压压缩包、安装 Python/Dart 或使用管理员权限。移动或分发应用时，请保留 EXE 旁边的 DLL 和 `data` 文件夹。目录已包含 Flutter 库、资源与 Visual C++ 运行库。Windows 代码签名尚未配置。
+
+macOS 与 Linux 使用 tar.gz，例如 `port-bridge-0.2.1-linux-x86_64.tar.gz`。压缩包包含完整应用、说明文档与 `build-info.json`，请完整解压，这些平台的执行文件仍依赖旁边的 Flutter 库和数据。macOS 发布签名与公证尚未配置。
 
 Windows 双击 `port_bridge.exe`，macOS 打开 `Port Bridge.app`，Linux 执行 `./port_bridge`。启用登录启动前，请将应用放在固定目录。升级时请先退出应用，再替换完整目录；移动目录后需要关闭并重新打开登录启动设置。Linux 的 `.desktop` 模板在安装到应用菜单前，需要将程序加入 PATH 或将 `Exec` 改为绝对路径。
+
+已有构建正在运行时，可用 `--output-root dist/next` 输出到另一个目录。在 Windows 交互式桌面会话中，可运行 `./tool/verify_window_behavior.ps1 -Executable <程序路径>` 检查最小化、关闭和托盘行为。
 
 ## 配置与升级
 

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' show AppExitResponse;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +9,8 @@ import 'package:port_bridge/application/engine_client.dart';
 import 'package:port_bridge/data/config_store.dart';
 import 'package:port_bridge/domain/bridge_engine.dart';
 import 'package:port_bridge/domain/rule.dart';
+import 'package:port_bridge/domain/appearance.dart';
+import 'package:port_bridge/domain/window_preferences.dart';
 import 'package:port_bridge/platform/desktop_integration.dart';
 import 'package:port_bridge/presentation/bridge_app.dart';
 
@@ -15,15 +18,35 @@ class MemoryStore extends ConfigStore {
   MemoryStore() : super(Directory('/test/config'));
   List<ForwardRule> rules = [];
   String language = 'en';
+  Appearance appearance = const Appearance();
+  WindowPreferences windowPreferences = const WindowPreferences();
   bool failSave = false;
   @override
   Future<List<ForwardRule>> loadRules() async => rules;
   @override
-  Future<Map<String, dynamic>> loadSettings() async => {'language': language};
+  Future<Map<String, dynamic>> loadSettings() async => {
+    'language': language,
+    'theme_mode': appearance.mode.name,
+    'accent_color': appearance.accent.name,
+    'minimize_to_tray': windowPreferences.minimizeToTray,
+    'close_action': windowPreferences.closeAction.name,
+  };
   @override
   Future<void> saveRules(List<ForwardRule> value) async {
     if (failSave) throw const FileSystemException('Read only');
     rules = value;
+  }
+
+  @override
+  Future<void> saveAppearance(Appearance value) async {
+    if (failSave) throw const FileSystemException('Read only');
+    appearance = value;
+  }
+
+  @override
+  Future<void> saveWindowPreferences(WindowPreferences value) async {
+    if (failSave) throw const FileSystemException('Read only');
+    windowPreferences = value;
   }
 
   @override
@@ -120,6 +143,7 @@ void main() {
     expect(store.language, 'zh_CN');
     expect(engine.starts, 1);
     expect(engine.stops, 0);
+    await tester.ensureVisible(find.text('完成'));
     await tester.tap(find.text('完成'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(ValueKey('toggle-$id')));
@@ -127,6 +151,174 @@ void main() {
     expect(controller.state(id), 'stopped');
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'appearance changes live, follows system and preserves running rules',
+    (tester) async {
+      await controller.saveRule(
+        const ForwardRule(
+          id: 'theme-rule',
+          name: 'Service',
+          listenPort: 9000,
+          targetHost: 'localhost',
+          targetPort: 8080,
+        ),
+      );
+      await controller.start(controller.rules.single);
+      await open(tester);
+      Brightness brightness() =>
+          Theme.of(tester.element(find.byType(Scaffold).first)).brightness;
+      Color primary() =>
+          Theme.of(tester.element(find.byType(Scaffold).first))
+              .colorScheme
+              .primary;
+      tester.binding.platformDispatcher.platformBrightnessTestValue =
+          Brightness.light;
+      addTearDown(
+        tester.binding.platformDispatcher.clearPlatformBrightnessTestValue,
+      );
+      await tester.pumpAndSettle();
+      expect(brightness(), Brightness.light);
+      await tester.tap(find.byKey(const ValueKey('settingsButton')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('themeSelector')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Dark').last);
+      await tester.pumpAndSettle();
+      expect(brightness(), Brightness.dark);
+      expect(
+        Theme.of(tester.element(find.byKey(const ValueKey('themeSelector'))))
+            .brightness,
+        Brightness.dark,
+      );
+      final oldPrimary = primary();
+      await tester.ensureVisible(find.byKey(const ValueKey('accent-violet')));
+      await tester.tap(find.byKey(const ValueKey('accent-violet')));
+      await tester.pumpAndSettle();
+      expect(primary(), isNot(oldPrimary));
+      expect(store.appearance.mode, AppThemeMode.dark);
+      expect(store.appearance.accent, AppAccent.violet);
+      await controller.setAppearance(const Appearance());
+      await tester.pumpAndSettle();
+      expect(brightness(), Brightness.light);
+      tester.binding.platformDispatcher.platformBrightnessTestValue =
+          Brightness.dark;
+      await tester.pumpAndSettle();
+      expect(brightness(), Brightness.dark);
+      expect(engine.starts, 1);
+      expect(engine.stops, 0);
+      expect(controller.state('theme-rule'), 'running');
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'failed appearance save preserves active theme and reports error',
+    (tester) async {
+      store.failSave = true;
+      await open(tester, const Size(800, 600));
+      await tester.tap(find.byKey(const ValueKey('settingsButton')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('accent-blue')));
+      await tester.tap(find.byKey(const ValueKey('accent-blue')));
+      await tester.pumpAndSettle();
+      expect(controller.appearance.accent, AppAccent.teal);
+      expect(find.textContaining('Read only'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  test('controller restores saved appearance on launch', () async {
+    await store.saveAppearance(
+      const Appearance(mode: AppThemeMode.dark, accent: AppAccent.violet),
+    );
+    final restored = BridgeController(
+      store: store,
+      engine: FakeEngine(),
+      desktop: FakeDesktop(),
+    );
+    await restored.initialize();
+    expect(restored.appearance.mode, AppThemeMode.dark);
+    expect(restored.appearance.accent, AppAccent.violet);
+    await restored.shutdown();
+    restored.dispose();
+  });
+
+  testWidgets(
+    'window behavior settings save, translate and preserve failed changes',
+    (tester) async {
+      await open(tester, const Size(800, 600));
+      await tester.tap(find.byKey(const ValueKey('settingsButton')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('minimizeToTray')));
+      await tester.tap(find.byKey(const ValueKey('minimizeToTray')));
+      await tester.pumpAndSettle();
+      expect(store.windowPreferences.minimizeToTray, isTrue);
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('closeActionSelector')),
+      );
+      await tester.tap(find.byKey(const ValueKey('closeActionSelector')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Minimize').last);
+      await tester.pumpAndSettle();
+      expect(store.windowPreferences.closeAction, CloseAction.minimize);
+      store.failSave = true;
+      await tester.tap(find.byKey(const ValueKey('closeActionSelector')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Exit application').last);
+      await tester.pumpAndSettle();
+      expect(controller.windowPreferences.closeAction, CloseAction.minimize);
+      expect(find.textContaining('Read only'), findsOneWidget);
+      await controller.setLanguage('zh_CN');
+      await tester.pumpAndSettle();
+      expect(find.text('最小化到托盘'), findsOneWidget);
+      expect(find.text('最小化'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'native close replay keeps engine alive until the window handler decides',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1360, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      var shutdowns = 0;
+      await tester.pumpWidget(
+        BridgeApp(
+          controller: controller,
+          onShutdown: () async {
+            shutdowns++;
+          },
+          onExitRequested: () async => AppExitResponse.exit,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(await tester.binding.handleRequestAppExit(), AppExitResponse.exit);
+      expect(controller.closing, isFalse);
+      expect(shutdowns, 0);
+    },
+  );
+
+  testWidgets(
+    'settings provides explicit exit when close is configured to minimize',
+    (tester) async {
+      await controller.setWindowPreferences(
+        const WindowPreferences(closeAction: CloseAction.minimize),
+      );
+      var exits = 0;
+      controller.requestExit = () async {
+        exits++;
+      };
+      await open(tester, const Size(800, 600));
+      await tester.tap(find.byKey(const ValueKey('settingsButton')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('exitApplication')));
+      await tester.tap(find.byKey(const ValueKey('exitApplication')));
+      await tester.pumpAndSettle();
+      expect(exits, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('failed save keeps dialog and in-memory rules unchanged', (
     tester,

@@ -1,6 +1,6 @@
 # Architecture
 
-Port Bridge 2 uses Flutter for every application screen and Dart for all application logic. There is no Python service, embedded interpreter, HTTP control server, or subprocess RPC protocol.
+Port Bridge uses Flutter for every application screen and Dart for all application logic. There is no Python service, embedded interpreter, HTTP control server, or subprocess RPC protocol.
 
 ## Why Dart
 
@@ -25,10 +25,16 @@ Rules retain the Python release's version-1 JSON schema. Settings retain `en` an
 
 Flutter's standard Windows, macOS and Linux runners host the UI. Builds run on matching OS/CPU hosts, and artifact names include `x86_64` or `arm64`. `tool/build.dart` refuses a mismatched requested architecture. macOS builds may contain universal binaries produced by Xcode; the artifact suffix identifies the build/test host, not a promise that the other slice was tested.
 
-Login startup uses Windows Startup shortcuts, a macOS LaunchAgent, or Linux XDG autostart entries. Install/extract to a stable directory before enabling it. Moving the application requires toggling login startup off and on. Exit terminates forwarding; minimize keeps it running.
+Login startup uses Windows Startup shortcuts, a macOS LaunchAgent, or Linux XDG autostart entries. Install/extract to a stable directory before enabling it. Moving the application requires toggling login startup off and on. Exit terminates forwarding; minimize keeps it running. `WindowSession` serializes native close/minimize/tray events through `window_manager` and `tray_manager`. Window preferences default to taskbar minimization and exit on Close. Tray initialization must succeed before hiding; Linux also checks for a StatusNotifier host through `gdbus`. Explicit tray Exit and application Quit shut down the engine, remove the icon and release the configuration lock.
 
 Windows distribution is an installation-free directory containing `port_bridge.exe`, Flutter DLLs, assets and app-local Visual C++ redistributables. `tool/windows_package.dart` locates and includes the matching VC runtime; `tool/build.dart` copies the complete bundle and documentation into `dist/` without an archive. Keep all files together when moving or upgrading the application. The standard Flutter executable is the entry point for both direct launch and login startup.
 
 For a standalone MSVC/Windows SDK environment without a registered Visual Studio installation, `tool/build_windows.ps1 -StandaloneToolchain` builds through Ninja Multi-Config. Run it with Flutter, CMake, Ninja, cl.exe and rc.exe on PATH and matching INCLUDE/LIB variables. Normal builds and CI continue to use Flutter's Visual Studio integration. Set `PORT_BRIDGE_VC_REDIST` when automatic redistributable discovery is unavailable.
 
 Tests cover real sockets, half-close, concurrent binary payloads, bounded buffering, listener recovery, worker commands, legacy configuration, localization and UI workflows. Native builds on another operating system still require that system's compiler and runtime validation.
+
+## Versioning
+
+Releases use `0.x.x`; the current version is `0.2.1`. Update `pubspec.yaml` and `appVersion` together. Packaging rejects mismatched versions or a nonzero major version.
+
+On Windows, Flutter intercepts the first `WM_CLOSE` before native plugins. The framework exit callback allows the replay without shutting down the controller; `window_manager` then forwards it to `WindowSession`, which applies the configured close action. The native window test covers this ordering with an active TCP connection.

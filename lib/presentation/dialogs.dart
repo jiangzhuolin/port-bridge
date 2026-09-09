@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../application/bridge_controller.dart';
 import '../domain/rule.dart';
+import '../domain/appearance.dart';
+import '../domain/window_preferences.dart';
 import '../l10n/strings.dart';
 import '../platform/desktop_integration.dart';
 import 'theme.dart';
@@ -54,7 +56,7 @@ class _RuleDialogState extends State<RuleDialog> {
       final local = int.tryParse(listenPort.text.trim()),
           remote = int.tryParse(targetPort.text.trim());
       if (local == null || remote == null) {
-        throw const BridgeException('invalidPort');
+        throw BridgeException('invalidPort');
       }
       final rule = ForwardRule(
         id: widget.rule?.id ?? ForwardRule.newId(),
@@ -96,18 +98,21 @@ class _RuleDialogState extends State<RuleDialog> {
     );
     return Dialog(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 600),
+        constraints: BoxConstraints(maxWidth: 600),
         child: SingleChildScrollView(
           child: Padding(
-            padding: const EdgeInsets.all(30),
+            padding: EdgeInsets.all(30),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.alt_route_rounded, color: accent),
-                    const SizedBox(width: 12),
+                    Icon(
+                      Icons.alt_route_rounded,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         s(widget.rule == null ? 'addTitle' : 'editTitle'),
@@ -117,52 +122,55 @@ class _RuleDialogState extends State<RuleDialog> {
                     IconButton(
                       tooltip: s('close'),
                       onPressed: saving ? null : () => Navigator.pop(context),
-                      icon: const Icon(Icons.close),
+                      icon: Icon(Icons.close),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Text(
                   s('ruleHint'),
-                  style: const TextStyle(color: muted, height: 1.5),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    height: 1.5,
+                  ),
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: 24),
                 field('ruleName', name, focus: true),
-                const SizedBox(height: 24),
-                _section(s('listenSection')),
-                const SizedBox(height: 12),
+                SizedBox(height: 24),
+                _section(context, s('listenSection')),
+                SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(flex: 3, child: field('listenHost', listenHost)),
-                    const SizedBox(width: 14),
+                    SizedBox(width: 14),
                     Expanded(
                       child: field('listenPort', listenPort, port: true),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 Text(
                   s('listenHint'),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
-                const SizedBox(height: 24),
-                _section(s('targetSection')),
-                const SizedBox(height: 12),
+                SizedBox(height: 24),
+                _section(context, s('targetSection')),
+                SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(flex: 3, child: field('targetHost', targetHost)),
-                    const SizedBox(width: 14),
+                    SizedBox(width: 14),
                     Expanded(
                       child: field('targetPort', targetPort, port: true),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 Text(
                   s('targetHint'),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
-                const SizedBox(height: 18),
+                SizedBox(height: 18),
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
                   controlAffinity: ListTileControlAffinity.leading,
@@ -174,14 +182,16 @@ class _RuleDialogState extends State<RuleDialog> {
                 ),
                 if (error != null)
                   Padding(
-                    padding: const EdgeInsets.only(top: 10),
+                    padding: EdgeInsets.only(top: 10),
                     child: Text(
                       s.error(error!),
-                      key: const ValueKey('ruleError'),
-                      style: const TextStyle(color: Colors.red),
+                      key: ValueKey('ruleError'),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
                   ),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -189,9 +199,9 @@ class _RuleDialogState extends State<RuleDialog> {
                       onPressed: saving ? null : () => Navigator.pop(context),
                       child: Text(s('cancel')),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12),
                     FilledButton(
-                      key: const ValueKey('saveRule'),
+                      key: ValueKey('saveRule'),
                       onPressed: saving ? null : save,
                       child: Text(s('save')),
                     ),
@@ -205,12 +215,12 @@ class _RuleDialogState extends State<RuleDialog> {
     );
   }
 
-  Widget _section(String label) => Text(
+  Widget _section(BuildContext context, String label) => Text(
     label,
-    style: const TextStyle(
+    style: TextStyle(
       fontSize: 11,
       fontWeight: FontWeight.w700,
-      color: muted,
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
       letterSpacing: 1.2,
     ),
   );
@@ -247,10 +257,10 @@ class _SettingsDialogState extends State<SettingsDialog> {
       final c = widget.controller, s = Strings(widget.controller.language);
       return Dialog(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
+          constraints: BoxConstraints(maxWidth: 520),
           child: SingleChildScrollView(
             child: Padding(
-              padding: const EdgeInsets.all(30),
+              padding: EdgeInsets.all(30),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -259,15 +269,15 @@ class _SettingsDialogState extends State<SettingsDialog> {
                     s('settings'),
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  const SizedBox(height: 26),
+                  SizedBox(height: 26),
                   Text(
                     s('language'),
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   SegmentedButton<String>(
-                    key: const ValueKey('languageSelector'),
-                    segments: const [
+                    key: ValueKey('languageSelector'),
+                    segments: [
                       ButtonSegment(value: 'en', label: Text('English')),
                       ButtonSegment(value: 'zh_CN', label: Text('简体中文')),
                     ],
@@ -276,17 +286,171 @@ class _SettingsDialogState extends State<SettingsDialog> {
                         ? null
                         : (value) => change(() => c.setLanguage(value.first)),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   Text(
                     s('languageHint'),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
-                  const Padding(
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Divider(),
+                  ),
+                  Text(
+                    s('appearance'),
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  SizedBox(height: 12),
+                  InputDecorator(
+                    decoration: InputDecoration(labelText: s('themeMode')),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<AppThemeMode>(
+                        key: ValueKey('themeSelector'),
+                        value: c.appearance.mode,
+                        isExpanded: true,
+                        isDense: true,
+                        items: [
+                          for (final mode in AppThemeMode.values)
+                            DropdownMenuItem(
+                              value: mode,
+                              child: Text(s('theme_${mode.name}')),
+                            ),
+                        ],
+                        onChanged: busy
+                            ? null
+                            : (value) {
+                                if (value != null) {
+                                  change(
+                                    () => c.setAppearance(
+                                      Appearance(
+                                        mode: value,
+                                        accent: c.appearance.accent,
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    s('accentColor'),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final color in AppAccent.values)
+                        ChoiceChip(
+                          key: ValueKey('accent-${color.name}'),
+                          avatar: Icon(
+                            Icons.circle,
+                            size: 16,
+                            color: accentSeed(color),
+                          ),
+                          label: Text(s('accent_${color.name}')),
+                          selected: c.appearance.accent == color,
+                          onSelected: busy
+                              ? null
+                              : (_) => change(
+                                  () => c.setAppearance(
+                                    Appearance(
+                                      mode: c.appearance.mode,
+                                      accent: color,
+                                    ),
+                                  ),
+                                ),
+                        ),
+                    ],
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    s('appearanceHint'),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Divider(),
+                  ),
+                  Text(
+                    s('windowBehavior'),
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  SizedBox(height: 8),
+                  SwitchListTile(
+                    key: ValueKey('minimizeToTray'),
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(s('minimizeToTray')),
+                    subtitle: Text(s('minimizeToTrayHint')),
+                    value: c.windowPreferences.minimizeToTray,
+                    onChanged: busy
+                        ? null
+                        : (value) => change(
+                            () => c.setWindowPreferences(
+                              WindowPreferences(
+                                minimizeToTray: value,
+                                closeAction: c.windowPreferences.closeAction,
+                              ),
+                            ),
+                          ),
+                  ),
+                  SizedBox(height: 16),
+                  InputDecorator(
+                    decoration: InputDecoration(labelText: s('closeAction')),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<CloseAction>(
+                        key: ValueKey('closeActionSelector'),
+                        value: c.windowPreferences.closeAction,
+                        isExpanded: true,
+                        isDense: true,
+                        items: [
+                          for (final action in CloseAction.values)
+                            DropdownMenuItem(
+                              value: action,
+                              child: Text(s('close_${action.name}')),
+                            ),
+                        ],
+                        onChanged: busy
+                            ? null
+                            : (value) {
+                                if (value != null) {
+                                  change(
+                                    () => c.setWindowPreferences(
+                                      WindowPreferences(
+                                        minimizeToTray:
+                                            c.windowPreferences.minimizeToTray,
+                                        closeAction: value,
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    s('closeActionHint'),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  if (c.windowError != null)
+                    Padding(
+                      padding: EdgeInsets.only(top: 12),
+                      child: Text(
+                        s.error(c.windowError!),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ),
+                  Padding(
                     padding: EdgeInsets.symmetric(vertical: 16),
                     child: Divider(),
                   ),
                   SwitchListTile(
-                    key: const ValueKey('loginStartup'),
+                    key: ValueKey('loginStartup'),
                     contentPadding: EdgeInsets.zero,
                     title: Text(s('loginStartup')),
                     subtitle: Text(s('loginHint')),
@@ -295,7 +459,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                         ? null
                         : (value) => change(() => c.setAutostart(value)),
                   ),
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.symmetric(vertical: 16),
                     child: Divider(),
                   ),
@@ -303,36 +467,56 @@ class _SettingsDialogState extends State<SettingsDialog> {
                     s('platform'),
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Text(
                     '${c.desktop.runtimeLabel}\nFlutter + Dart · v$appVersion',
-                    style: const TextStyle(color: muted, height: 1.7),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      height: 1.7,
+                    ),
                   ),
-                  const SizedBox(height: 18),
+                  SizedBox(height: 18),
                   Text(
                     s('configLocation'),
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   SelectableText(
                     c.store.directory.path,
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   if (error != null)
                     Padding(
-                      padding: const EdgeInsets.only(top: 16),
+                      padding: EdgeInsets.only(top: 16),
                       child: Text(
                         s.error(error!),
-                        style: const TextStyle(color: Colors.red),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
                       ),
                     ),
-                  const SizedBox(height: 24),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: FilledButton(
-                      onPressed: busy ? null : () => Navigator.pop(context),
-                      child: Text(s('done')),
-                    ),
+                  SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      if (c.requestExit != null)
+                        TextButton.icon(
+                          key: const ValueKey('exitApplication'),
+                          onPressed: busy
+                              ? null
+                              : () => change(() async {
+                                  await c.requestExit?.call();
+                                }),
+                          icon: const Icon(Icons.logout, size: 18),
+                          label: Text(s('exitApp')),
+                        )
+                      else
+                        const SizedBox.shrink(),
+                      FilledButton(
+                        onPressed: busy ? null : () => Navigator.pop(context),
+                        child: Text(s('done')),
+                      ),
+                    ],
                   ),
                 ],
               ),

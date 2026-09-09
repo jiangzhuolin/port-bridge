@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 
 import '../data/config_store.dart';
 import '../domain/rule.dart';
+import '../domain/appearance.dart';
+import '../domain/window_preferences.dart';
 import '../platform/desktop_integration.dart';
 import 'engine_client.dart';
 
@@ -28,6 +30,10 @@ class BridgeController extends ChangeNotifier {
   final metrics = <String, Map<String, dynamic>>{};
   final logs = <LogEntry>[];
   String language = 'en';
+  Appearance appearance = const Appearance();
+  WindowPreferences windowPreferences = const WindowPreferences();
+  Object? windowError;
+  Future<void> Function()? requestExit;
   String? selectedId;
   Object? configError, settingsError;
   bool autostart = false,
@@ -77,6 +83,8 @@ class BridgeController extends ChangeNotifier {
     try {
       final settings = await store.loadSettings();
       language = settings['language'] == 'zh_CN' ? 'zh_CN' : 'en';
+      appearance = Appearance.fromSettings(settings);
+      windowPreferences = WindowPreferences.fromSettings(settings);
     } catch (error) {
       settingsError = error;
     }
@@ -210,14 +218,36 @@ class BridgeController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setAppearance(Appearance value) async {
+    await store.saveAppearance(value);
+    appearance = value;
+    settingsError = null;
+    notifyListeners();
+  }
+
   Future<void> setAutostart(bool value) async {
     await desktop.setAutostart(value);
     autostart = value;
     notifyListeners();
   }
 
-  Future<void> shutdown() async {
-    if (closing) return;
+  Future<void> setWindowPreferences(WindowPreferences value) async {
+    await store.saveWindowPreferences(value);
+    windowPreferences = value;
+    settingsError = null;
+    notifyListeners();
+  }
+
+  void reportWindowError(Object? value) {
+    if (windowError?.toString() == value?.toString()) return;
+    windowError = value;
+    if (!closing) notifyListeners();
+  }
+
+  Future<void>? _shutdownFuture;
+  Future<void> shutdown() => _shutdownFuture ??= _shutdown();
+
+  Future<void> _shutdown() async {
     closing = true;
     try {
       await engine.close();

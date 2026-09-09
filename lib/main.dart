@@ -1,13 +1,16 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' show AppExitResponse;
 
 import 'package:flutter/material.dart';
 
 import 'application/bridge_controller.dart';
 import 'application/engine_client.dart';
+import 'application/window_session.dart';
 import 'data/config_store.dart';
 import 'l10n/strings.dart';
 import 'platform/desktop_integration.dart';
+import 'platform/window_actions.dart';
 import 'presentation/bridge_app.dart';
 import 'presentation/theme.dart';
 
@@ -39,11 +42,32 @@ Future<void> main(List<String> arguments) async {
       desktop: NativeDesktopIntegration(),
     );
     await controller.initialize();
-    runApp(BridgeApp(controller: controller, onShutdown: lock.close));
+    final session = WindowSession(
+      controller,
+      NativeWindowActions(),
+      releaseLock: lock.close,
+    );
+    try {
+      await session.initialize();
+    } catch (_) {
+      await session.shutdown();
+      rethrow;
+    }
+    runApp(
+      BridgeApp(
+        controller: controller,
+        onShutdown: session.shutdown,
+        // Windows Flutter consumes WM_CLOSE before native plugin delegates and
+        // replays it after this response. Leave cleanup to WindowSession when
+        // window_manager receives the replay, so minimize and quit both work.
+        onExitRequested: Platform.isWindows
+            ? () async => AppExitResponse.exit
+            : null,
+      ),
+    );
     if (smoke) {
       Timer(const Duration(seconds: 2), () async {
-        await controller.shutdown();
-        await lock.close();
+        await session.shutdown();
         await temporary!.delete(recursive: true);
         exit(0);
       });

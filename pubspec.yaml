@@ -1,7 +1,7 @@
 name: port_bridge
 description: A cross-platform desktop TCP port forwarding manager.
 publish_to: none
-version: 2.0.0+1
+version: 0.2.1+1
 environment:
   sdk: '>=3.13.0 <4.0.0'
   flutter: '>=3.47.2'
@@ -10,9 +10,14 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+  tray_manager: ^0.5.3
+  window_manager: ^0.5.2
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
 flutter:
   uses-material-design: true
+  assets:
+    - assets/tray.ico
+    - assets/tray.png

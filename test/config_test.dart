@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:port_bridge/data/config_store.dart';
 import 'package:port_bridge/domain/rule.dart';
+import 'package:port_bridge/domain/appearance.dart';
+import 'package:port_bridge/domain/window_preferences.dart';
 import 'package:port_bridge/l10n/strings.dart';
 import 'package:port_bridge/platform/desktop_integration.dart';
 
@@ -51,9 +53,87 @@ void main() {
       expect(temp.listSync().where((f) => f.path.endsWith('.tmp')), isEmpty);
     },
   );
+  test(
+    'appearance persists without losing language or unknown settings',
+    () async {
+      await store.settingsFile.writeAsString(
+        '{"language":"zh_CN","future_option":42}',
+      );
+      expect(
+        Appearance.fromSettings(await store.loadSettings()).mode,
+        AppThemeMode.system,
+      );
+      await store.saveAppearance(
+        const Appearance(mode: AppThemeMode.dark, accent: AppAccent.blue),
+      );
+      await store.saveLanguage('en');
+      final settings = await ConfigStore(temp).loadSettings();
+      expect(settings, {
+        'language': 'en',
+        'future_option': 42,
+        'theme_mode': 'dark',
+        'accent_color': 'blue',
+      });
+      final fallback = Appearance.fromSettings({
+        'theme_mode': 'unknown',
+        'accent_color': 123,
+      });
+      expect(fallback.mode, AppThemeMode.system);
+      expect(fallback.accent, AppAccent.teal);
+    },
+  );
+  test(
+    'window preferences keep existing settings and use compatible defaults',
+    () async {
+      await store.settingsFile.writeAsString(
+        '{"language":"zh_CN","future_option":42}',
+      );
+      final defaults = WindowPreferences.fromSettings(
+        await store.loadSettings(),
+      );
+      expect(defaults.minimizeToTray, isFalse);
+      expect(defaults.closeAction, CloseAction.exit);
+      await store.saveWindowPreferences(
+        const WindowPreferences(
+          minimizeToTray: true,
+          closeAction: CloseAction.minimize,
+        ),
+      );
+      await store.saveAppearance(const Appearance(mode: AppThemeMode.dark));
+      await store.saveLanguage('en');
+      final settings = await ConfigStore(temp).loadSettings();
+      final restored = WindowPreferences.fromSettings(settings);
+      expect(restored.minimizeToTray, isTrue);
+      expect(restored.closeAction, CloseAction.minimize);
+      expect(settings['future_option'], 42);
+      expect(settings['theme_mode'], 'dark');
+      expect(settings['language'], 'en');
+      final invalid = WindowPreferences.fromSettings({
+        'minimize_to_tray': 'yes',
+        'close_action': 'invalid',
+      });
+      expect(invalid.minimizeToTray, isFalse);
+      expect(invalid.closeAction, CloseAction.exit);
+    },
+  );
+  test('release version is consistently 0.x.x', () async {
+    final manifest = await File('pubspec.yaml').readAsString();
+    expect(appVersion, matches(r'^0\.\d+\.\d+$'));
+    expect(manifest, contains('version: $appVersion+'));
+  });
   test('corrupt settings are preserved', () async {
     await store.settingsFile.writeAsString('{broken');
     await expectLater(store.saveLanguage('zh_CN'), throwsFormatException);
+    await expectLater(
+      store.saveAppearance(const Appearance(mode: AppThemeMode.dark)),
+      throwsFormatException,
+    );
+    await expectLater(
+      store.saveWindowPreferences(
+        const WindowPreferences(minimizeToTray: true),
+      ),
+      throwsFormatException,
+    );
     expect(await store.settingsFile.readAsString(), '{broken');
   });
   test('rejects duplicate IDs and invalid schema', () async {
