@@ -3,3 +3,13 @@ __pycache__/
 .venv/
 build/
 dist/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+coverage/
+**/ephemeral/
+macos/Pods/
+**/xcuserdata/
+*.iml
+.idea/
