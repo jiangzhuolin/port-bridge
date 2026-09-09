@@ -1,4 +1,4 @@
-name: Verify Linux RPM packages
+name: Package and verify Linux distributions
 on:
   workflow_dispatch:
     inputs:
@@ -23,15 +23,32 @@ jobs:
             arch: arm64
     runs-on: ${{ matrix.runner }}
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: port-bridge-Linux-${{ matrix.arch }}
           path: packages
           run-id: ${{ inputs.build_run_id }}
           github-token: ${{ github.token }}
+      - name: Repackage the verified native bundle with current dependency metadata
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3 dpkg-dev rpm desktop-file-utils libgtk-3-dev libayatana-appindicator3-dev libegl1 libgles2 xvfb xauth
+          mkdir -p build/repackage dist
+          tar -xzf packages/*.tar.gz -C build/repackage
+          bundle=$(find build/repackage -mindepth 1 -maxdepth 1 -type d)
+          version=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$bundle/build-info.json")
+          python3 tool/linux_package.py "$bundle" dist "$version" "${{ matrix.arch }}"
+          cp packages/*.tar.gz dist/
+      - name: Install, launch and uninstall DEB
+        run: |
+          sudo apt-get install -y ./dist/*.deb
+          xvfb-run -a /usr/bin/port-bridge --smoke-test
+          sudo apt-get remove -y port-bridge
+          test ! -e /opt/port-bridge/port_bridge
       - name: Install, launch and uninstall RPM on native Fedora
         run: |
-          docker run --rm -v "$PWD/packages:/packages:ro" fedora:43 bash -euc '
+          docker run --rm -v "$PWD/dist:/packages:ro" fedora:43 bash -euc '
             dnf install -y /packages/*.rpm xorg-x11-server-Xvfb xorg-x11-xauth
             rpm -q --qf "%{NAME} %{VERSION} %{ARCH}\n" port-bridge
             test -L /usr/bin/port-bridge
@@ -39,3 +56,8 @@ jobs:
             dnf remove -y port-bridge
             test ! -e /opt/port-bridge/port_bridge
           '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: port-bridge-Linux-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error

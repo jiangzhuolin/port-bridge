@@ -2,7 +2,6 @@
 """Package a native Flutter bundle as DEB and RPM on a Debian/Ubuntu host."""
 
 import argparse
-import os
 from pathlib import Path
 import platform
 import re
@@ -99,7 +98,7 @@ Architecture: {deb_arch}
 Maintainer: Port Bridge contributors <jiangzl975@gmail.com>
 Homepage: https://github.com/jiangzhuolin/port-bridge
 Installed-Size: {size}
-Depends: {dependencies}, libglib2.0-bin
+Depends: {dependencies}, libglib2.0-bin, libegl1, libgles2
 Description: Desktop TCP port forwarding manager
  Manage TCP forwarding rules with a multilingual Flutter desktop interface.
 """)
@@ -125,6 +124,8 @@ License: Apache-2.0
 URL: https://github.com/jiangzhuolin/port-bridge
 BuildArch: {rpm_arch}
 Requires: /usr/bin/gdbus
+Requires: libEGL.so.1()(64bit)
+Requires: libGLESv2.so.2()(64bit)
 
 %description
 Manage TCP forwarding rules with a multilingual Flutter desktop interface.
