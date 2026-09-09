@@ -84,7 +84,7 @@ dart run tool/build.dart --target-arch x86_64
 
 脚本编译 release 版本并输出到 `dist/`。Windows 输出**免安装目录**，例如 `port-bridge-0.2.2-windows-x86_64/`。打开目录，双击 `port_bridge.exe` 即可，无需安装、解压压缩包、安装 Python/Dart 或使用管理员权限。移动或分发应用时，请保留 EXE 旁边的 DLL 和 `data` 文件夹。目录已包含 Flutter 库、资源与 Visual C++ 运行库。Windows 代码签名尚未配置。
 
-macOS 与 Linux 使用 tar.gz，例如 `port-bridge-0.2.2-linux-x86_64.tar.gz`。压缩包包含完整应用、说明文档与 `build-info.json`，请完整解压，这些平台的执行文件仍依赖旁边的 Flutter 库和数据。macOS 发布签名与公证尚未配置。
+Linux 提供 `.deb`、`.rpm` 安装包和免安装 `.tar.gz`；macOS 提供 `.dmg` 和 `.tar.gz`。两个平台均分别输出 `x86_64` 和 `arm64`，例如 `port-bridge-0.2.2-linux-arm64.deb`。压缩包包含完整应用、许可证、说明文档与 `build-info.json`，请完整解压并保留旁边的 Flutter 库和数据。macOS 发布签名与公证尚未配置。安装方式、依赖与构建说明见[软件包说明](docs/packages.md)。
 
 Windows 双击 `port_bridge.exe`，macOS 打开 `Port Bridge.app`，Linux 执行 `./port_bridge`。启用登录启动前，请将应用放在固定目录。升级时请先退出应用，再替换完整目录；移动目录后需要关闭并重新打开登录启动设置。Linux 的 `.desktop` 模板在安装到应用菜单前，需要将程序加入 PATH 或将 `Exec` 改为绝对路径。
 

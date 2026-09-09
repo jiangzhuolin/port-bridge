@@ -17,10 +17,15 @@ Future<void> copyDocs(Directory source, Directory destination) async {
   }
 }
 
-Future<void> command(String executable, List<String> args) async {
+Future<void> command(
+  String executable,
+  List<String> args, {
+  Map<String, String>? environment,
+}) async {
   final process = await Process.start(
     executable,
     args,
+    environment: environment,
     mode: ProcessStartMode.inheritStdio,
     runInShell: Platform.isWindows && executable.endsWith('.bat'),
   );
@@ -72,7 +77,20 @@ Future<void> main(List<String> args) async {
   final executable = flutter == null
       ? (Platform.isWindows ? 'flutter.bat' : 'flutter')
       : '$flutter/bin/flutter${Platform.isWindows ? '.bat' : ''}';
-  if (!skipBuild) await command(executable, ['build', os, '--release']);
+  if (!skipBuild) {
+    await command(
+      executable,
+      ['build', os, '--release'],
+      environment: os == 'macos'
+          ? {
+              'FLUTTER_XCODE_ARCHS': arch,
+              'FLUTTER_XCODE_EXCLUDED_ARCHS': arch == 'arm64'
+                  ? 'x86_64'
+                  : 'arm64',
+            }
+          : null,
+    );
+  }
   final cpu = arch == 'x86_64' ? 'x64' : 'arm64';
   final source = Directory(switch (os) {
     'windows' => 'build/windows/$cpu/runner/Release',
@@ -101,6 +119,15 @@ Future<void> main(List<String> args) async {
         apps.single.path,
         '${bundle.path}/Port Bridge.app',
       ]);
+      final result = await Process.run('lipo', [
+        '-archs',
+        '${bundle.path}/Port Bridge.app/Contents/MacOS/port_bridge',
+      ]);
+      if (result.exitCode != 0 || result.stdout.toString().trim() != arch) {
+        throw StateError(
+          'macOS executable must contain only $arch: ${result.stdout}',
+        );
+      }
     } else if (os == 'windows') {
       await copyDocs(source, bundle);
     } else {
@@ -111,7 +138,7 @@ Future<void> main(List<String> args) async {
         ).replaceFirst('Exec="${bundle.path}/port_bridge"', 'Exec=port_bridge'),
       );
     }
-    for (final doc in ['README.md', 'README.zh-CN.md']) {
+    for (final doc in ['README.md', 'README.zh-CN.md', 'LICENSE']) {
       await File(doc).copy('${bundle.path}/$doc');
     }
     await copyDocs(Directory('docs'), Directory('${bundle.path}/docs'));
@@ -133,6 +160,31 @@ Future<void> main(List<String> args) async {
     final archive = File('${dist.absolute.path}/$name.tar.gz');
     await command('tar', ['-czf', archive.path, '-C', stage.path, name]);
     stdout.writeln('Created ${archive.path}');
+    if (os == 'linux') {
+      await command('python3', [
+        'tool/linux_package.py',
+        bundle.path,
+        dist.absolute.path,
+        appVersion,
+        arch,
+      ]);
+    } else if (os == 'macos') {
+      await Link('${bundle.path}/Applications').create('/Applications');
+      final dmg = '${dist.absolute.path}/$name.dmg';
+      await command('hdiutil', [
+        'create',
+        '-ov',
+        '-format',
+        'UDZO',
+        '-volname',
+        'Port Bridge $appVersion',
+        '-srcfolder',
+        bundle.path,
+        dmg,
+      ]);
+      await command('hdiutil', ['verify', dmg]);
+      stdout.writeln('Created $dmg');
+    }
   } finally {
     await stage.delete(recursive: true);
   }

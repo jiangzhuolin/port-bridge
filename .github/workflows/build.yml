@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Linux build dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libayatana-appindicator3-dev libglib2.0-bin liblzma-dev libstdc++-12-dev xvfb xauth fonts-noto-cjk
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libayatana-appindicator3-dev libglib2.0-bin liblzma-dev libstdc++-12-dev xvfb xauth fonts-noto-cjk python3 dpkg-dev rpm desktop-file-utils
       # Linux ARM64 has no preassembled stable SDK archive. Bootstrap native Dart.
       - name: Install pinned Flutter source
         uses: actions/checkout@v4
@@ -55,6 +55,15 @@ jobs:
       - name: Linux native integration test
         if: runner.os == 'Linux'
         run: xvfb-run -a dart run tool/verify_desktop.dart build/linux/*/release/bundle/port_bridge
+      - name: Linux DEB install, launch and uninstall
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y ./dist/*.deb
+          xvfb-run -a dart run tool/verify_desktop.dart /opt/port-bridge/port_bridge
+          test -L /usr/bin/port-bridge
+          desktop-file-validate /usr/share/applications/port-bridge.desktop
+          sudo apt-get remove -y port-bridge
+          test ! -e /opt/port-bridge/port_bridge
       - name: Windows portable directory integration test
         if: runner.os == 'Windows'
         run: |
