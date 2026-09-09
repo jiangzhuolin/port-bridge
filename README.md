@@ -1,153 +1,153 @@
-# 端口桥 · Port Bridge 1.0.0
+# Port Bridge
 
-中文 Linux 桌面 TCP 端口转发工具。在 GUI 中添加、编辑、删除多条规则，单独或全部启停；显示实时连接数、发送 / 接收流量、连接异常和日志。无需 socat、pip 或逐条配置 systemd service。
+English | [简体中文](README.zh-CN.md)
 
-## Ubuntu 安装
+A lightweight desktop application for managing TCP port forwarding rules. Listen on a local address and port, forward connections to a target service, and monitor connections and traffic from one window.
 
-推荐使用随附安装包，在下载目录执行：
+Port Bridge uses Python's standard library, Tkinter, and asyncio. It is designed for Linux desktops and requires no pip packages, external forwarding utilities, or per-rule system services.
+
+## Features
+
+- Add, edit, and delete multiple forwarding rules; start or stop them individually or together.
+- View active and cumulative connections, sent / received traffic, errors, and activity logs.
+- Save rules locally and optionally start them when the application opens.
+- Optionally launch at Linux desktop login.
+- Switch between English and Simplified Chinese in **Settings → Language**. Changes apply immediately and persist across launches; active connections continue.
+- Forward bidirectional TCP traffic, including TCP half-close, with IPv4 and IPv6 listening addresses.
+
+## Installation
+
+Python 3.10+ and Tkinter are required. Linux packaging targets Ubuntu 22.04+ and Debian 12+ with a graphical desktop session. The application can also run on Windows with Tkinter installed; the installer, desktop autostart, and single-instance lock are Linux-specific.
+
+### Run from source
+
+Download or clone the repository and open its directory. On Ubuntu / Debian:
+
+```bash
+sudo apt install python3-tk
+python3 app.py
+```
+
+On Windows, run `python app.py` using a Python installation with Tkinter support.
+
+### Install for the current Linux user
+
+After installing Tkinter, run this from the source directory:
+
+```bash
+python3 install.py
+```
+
+Then open **Port Bridge** from the application menu. The installer copies files into the current user's data directory and does not itself require root.
+
+### Debian package
+
+If you have downloaded or built the Debian package:
 
 ```bash
 sudo apt install ./port-bridge_1.0.0_all.deb
 ```
 
-安装器会安装 Python 3 和 Tk 图形库。随后从应用菜单打开「端口桥 / Port Bridge」，或运行 `port-bridge`。支持 Python 3.10+，Ubuntu 22.04+ / Debian 12+；需要 Linux 图形桌面会话。
+The package declares Python and Tkinter dependencies. Open **Port Bridge** from the application menu or run `port-bridge`. Choose either the Debian package or the user installation to avoid duplicate launchers; both use the same configuration directory.
 
-也可以解压源码包安装到当前用户，无需 root 安装程序本身：
-
-```bash
-sudo apt install python3-tk
-python3 install.py
-```
-
-或者直接运行 `python3 app.py`。不要同时使用 deb 和用户安装；两者共用规则配置。Python 代码也能在带 Tk 的 Windows 上运行，但登录自动启动功能仅用于 Linux。
-
-## 你的使用场景
+## Usage
 
 ```text
-Docker 容器 → Ubuntu 0.0.0.0:10808 → Windows IP:10808
+TCP client → Host running Port Bridge:listen_port → Target host:target_port
 ```
 
-点击「添加规则」：
+1. Click **Add rule** and enter a name, listening address and port, and target address and port.
+2. Click **Save rule**, select the rule, and click **Start selected**.
+3. Connect your client to the listening address and port. Watch the table and log for traffic and errors.
+4. Stop a rule before editing it. Use **Start all** or **Stop all** to control all rules.
 
-| 字段 | 填写 |
+For example, to reach a service on another machine's port `8080` through local port `9000`:
+
+| Field | Example |
 | --- | --- |
-| 规则名称 | Windows 代理 |
-| Ubuntu 监听地址 | 0.0.0.0 |
-| Ubuntu 监听端口 | 10808 |
-| 目标 IP / 主机名 | Windows 的 VMnet8 IPv4 地址，例如 192.168.100.1 |
-| 目标端口 | 10808 |
+| Rule name | Development service |
+| Listen address | `127.0.0.1` |
+| Listen port | `9000` |
+| Target IP / hostname | `192.0.2.10` |
+| Target port | `8080` |
 
-目标 IP 是示例，请在 Windows 执行 `ipconfig` 查找实际地址。NAT 模式通常使用 VMnet8；桥接模式使用 Ubuntu 可达的 Windows 局域网 IP。目标地址不要填写 `http://`，也不要填写端口。
+`192.0.2.10` is a documentation example; replace it with a service address reachable from the machine running Port Bridge. Enter the target host without a URL scheme, port, or IPv6 brackets. Port Bridge connects to the target when a client connects, so **Running** means the listening socket is ready; it does not confirm target reachability.
 
-保存后点击「启动所选」。可以重复添加其他规则。每次修改都会保存，运行中的规则须先停止再编辑。「随软件启动」只控制下次软件启动时是否启用；「全部启动」会启动所有规则。
+Use `127.0.0.1` for clients on the same machine. To accept clients from other machines, virtual machines, or containers, choose an appropriate host interface address or `0.0.0.0` for all IPv4 interfaces, and configure firewall access for the intended clients. Clients must use a reachable address of the host running Port Bridge; `0.0.0.0` is a listening address. An IPv6 listener can use `::` or a specific IPv6 interface address.
 
-Windows 的代理必须允许来自 Ubuntu 的连接（监听 VMnet8 IP 或 0.0.0.0），Windows 防火墙也必须允许 Ubuntu 访问该端口。Windows 只监听 127.0.0.1 时，需要先更改代理软件监听设置；本软件不会修改 Windows 配置。
+Typical uses include forwarding to a development server, accessing a reachable TCP service through a different local port, or connecting a container or virtual machine to a service through its host. Routing, target access, and firewall permissions must allow the connection.
 
-如果 Ubuntu 使用 UFW，请按实际 Docker 网段放行监听端口，例如默认 bridge 网段确为 172.17.0.0/16 时：
+## Language and preferences
 
-```bash
-sudo ufw allow from 172.17.0.0/16 to any port 10808 proto tcp
-```
+The application defaults to English. Open **Settings → Language**, choose **English** or **简体中文**, and click **Apply**. Labels, statuses, validation messages, and application log messages update immediately. Rule names and addresses remain as entered; operating-system error details use the language supplied by the system.
 
-自定义 Docker 网络可能使用其他网段，可用 `docker network inspect 网络名` 查看。0.0.0.0 会监听所有 IPv4 网卡；如仅需特定网卡，可在 GUI 中填写其 IP。
+**Start this rule when the application opens** controls automatic activation on the next launch. **Start all** starts every rule regardless of that preference. **Open at Linux desktop login** launches the application after the current user logs into a graphical desktop session.
 
-## 容器访问
+## Behavior and limitations
 
-对于 Ubuntu 上的普通 Docker Engine bridge 网络，创建容器时加入：
+- TCP only. Port Bridge does not forward UDP, translate application protocols, or implement an HTTP / SOCKS server. It can relay TCP connections to an existing proxy, but does not support SOCKS5 UDP forwarding.
+- No built-in authentication or encryption. Access and transport security depend on the network configuration and target service.
+- Minimizing keeps forwarding active. Exiting stops listeners and closes existing connections. There is no tray mode or background system service.
+- An unavailable target fails the current connection; the listener stays active and new clients can connect when the target recovers.
+- Each rule accepts up to 512 concurrent connections. Each direction uses 64 KiB chunks with backpressure. Target connections have a 10-second connection timeout; established idle connections have no activity timeout.
+- Sent / received traffic is measured from the forwarder's perspective. Counters reset when a rule starts. The most recent 500 log entries are kept in memory and are not written to disk.
+- Port Bridge does not change client proxy settings, container networking, firewalls, or Docker daemon proxy settings.
 
-```bash
-docker run --add-host=host.docker.internal:host-gateway ...
-```
+## Configuration
 
-容器里的代理地址为 `host.docker.internal:10808`。这里指向 Ubuntu 宿主机，而不是 Windows。也可以直接使用容器可达的 Ubuntu IP。容器内的 127.0.0.1 指向容器自身。
+The configuration base directory is `$XDG_CONFIG_HOME`, or `~/.config` when that variable is unset:
 
-Compose 服务配置示例：
+| File | Purpose |
+| --- | --- |
+| `port-bridge/rules.json` | Rules and per-rule startup preferences |
+| `port-bridge/settings.json` | Application language (`en` or `zh_CN`) |
+| `autostart/io.portbridge.desktop` | Optional Linux desktop login launcher |
 
-```yaml
-services:
-  your-app:
-    image: your-existing-image
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-```
+Existing version-1 rule files remain supported. Language preferences are stored separately. An unreadable rule file is preserved and changes are disabled until it is repaired. An unreadable settings file falls back to English and is preserved; repair it and restart before saving preferences. An unknown language code falls back to English.
 
-如果目标是 HTTP 或 mixed 代理，可在容器内测试：
+## Troubleshooting
 
-```bash
-curl --connect-timeout 10 --proxy http://host.docker.internal:10808 -I https://example.com
-```
+- **Failed to start:** check the log for an occupied port, a listening IP that does not belong to the host, or insufficient permission to bind the port.
+- **Running but connections fail:** check target reachability, the target service's listening address, and firewall rules.
+- **Remote clients time out:** verify they use a reachable host address and that the listener and firewall allow access from their network.
+- **Application already running on Linux:** find the existing window in the taskbar. One instance per user configuration directory is allowed.
 
-如果目标只提供 SOCKS5：
+## Development
 
-```bash
-curl --connect-timeout 10 --proxy socks5h://host.docker.internal:10808 -I https://example.com
-```
-
-本软件透明转发 TCP，支持 HTTP CONNECT、SOCKS5 的 TCP 连接等；不转换协议，不转发 UDP / SOCKS5 UDP ASSOCIATE。容器内应用仍需设置自己的代理。本软件也不会自动更改 Docker daemon 的拉取代理。
-
-## 自动启动与运行方式
-
-- 勾选规则的「软件启动时自动启用这条规则」，软件下次打开时恢复该规则。
-- 勾选主窗口底部的「登录 Linux 桌面后自动打开」，自动创建当前用户的桌面自启动项。
-- 最小化窗口继续转发。退出软件会停止所有监听并关闭现有连接。
-- 自启动发生在登录图形桌面后，不是在无人登录的系统引导阶段。无托盘或后台系统服务。
-- 规则配置：`${XDG_CONFIG_HOME:-~/.config}/port-bridge/rules.json`。
-- 自启动项：`${XDG_CONFIG_HOME:-~/.config}/autostart/io.portbridge.desktop`。
-- 日志最多在窗口保留约 500 行，不写入磁盘。流量统计在启动规则时重置，发送 / 接收以 Ubuntu 转发器为视角。
-
-## 排查
-
-- **启动失败**：查看日志，通常是端口已被占用、监听 IP 不属于 Ubuntu，或低于 1024 的端口需要额外权限。10808 无需管理员权限。
-- **运行中但连接失败**：「运行中」表示成功监听，不代表 Windows 目标可达。检查 Windows IP、代理监听地址、防火墙及日志。
-- **目标暂时离线**：本次连接会关闭，监听保持运行；目标恢复后新连接自动重试，不需要重启规则。
-- **容器超时**：确认容器实际使用 Ubuntu 地址、Ubuntu 防火墙已放行、Windows 允许 Ubuntu 访问。
-- **重复运行**：Linux 下仅允许同一用户运行一个实例，在任务栏找到现有窗口。
-- **启动配置损坏**：软件保留原文件，并禁止覆盖；修复 JSON 后重开。
-
-每条规则最多同时处理 512 个连接；每个方向使用 64 KiB 分块和流量背压，避免一次读入完整流。目标建立连接超时为 10 秒。已有空闲连接不设活动超时，适合长连接代理。
-
-## 卸载
-
-先在 GUI 取消「登录 Linux 桌面后自动打开」并退出软件。deb 安装可执行：
-
-```bash
-sudo apt remove port-bridge
-```
-
-用户安装可删除 `~/.local/share/port-bridge`、`~/.local/share/applications/io.portbridge.desktop` 和 `~/.local/share/icons/hicolor/scalable/apps/io.portbridge.svg`；设置 XDG_DATA_HOME 时使用对应路径。配置默认保留，可单独删除配置目录。
-
-## 开发与验证
-
-在项目根目录启动软件：
-
-```bash
-python3 app.py
-```
-
-运行核心测试：
+Run core tests:
 
 ```bash
 python3 -m unittest discover -s tests -v
 ```
 
-覆盖多规则并发二进制传输、TCP 半关闭、端口冲突、停止后的连接回收与端口复用、目标恢复、IPv6、转发循环保护、配置读写与输入验证。
-
-构建源码压缩包和 Debian 安装包（第二条命令需要 Linux 的 `dpkg-deb`）：
+Build the source archive and Debian package (the second command requires Linux and `dpkg-deb`):
 
 ```bash
 python3 scripts/build_package.py
 bash scripts/build_deb.sh
 ```
 
-发布文件生成在 `dist/`，中间文件生成在 `build/`，均不纳入 Git。构建脚本不依赖原聊天工作目录。
+Outputs go to `dist/`; intermediate files go to `build/`. Both are excluded from Git. Packages include both README versions and the language resources.
 
-Linux GUI 集成测试需要 Tk、Xvfb、Pillow 和中文字体：
+For GUI integration tests and window captures on Ubuntu / Debian:
 
 ```bash
 sudo apt install python3-tk xvfb xauth python3-pil fonts-noto-cjk
 xvfb-run -a -s "-screen 0 1400x1000x24" python3 scripts/gui_smoke.py
 ```
 
-实际窗口截图保存在 `build/gui-tests/`。已安装 deb 时，还可以用 `xvfb-run -a python3 scripts/package_smoke.py` 验证系统启动入口。
+Captures are saved to `build/gui-tests/`. With the Debian package installed, verify the system launcher with `xvfb-run -a python3 scripts/package_smoke.py`. The GUI test can also run on Windows with Pillow installed using `python scripts/gui_smoke.py`; Linux autostart checks are skipped there.
 
-参考：[Python asyncio streams](https://docs.python.org/3/library/asyncio-stream.html)、[Freedesktop 自动启动规范](https://specifications.freedesktop.org/autostart/latest/)、[Docker host-gateway](https://docs.docker.com/reference/cli/docker/container/run/)。
+Translations are maintained in `i18n.py`. Runtime state codes are independent of the display language; new user-facing messages should use the translation helper and preserve placeholders in both languages.
+
+Bug reports and pull requests are welcome. Include the operating system, Python version, reproduction steps, and relevant logs with sensitive data removed. Run relevant tests for code changes and check both languages for UI changes.
+
+## Uninstall
+
+First disable **Open at Linux desktop login** and exit. For a Debian installation:
+
+```bash
+sudo apt remove port-bridge
+```
+
+For a user installation, remove `~/.local/share/port-bridge`, `~/.local/share/applications/io.portbridge.desktop`, and `~/.local/share/icons/hicolor/scalable/apps/io.portbridge.svg`, or their equivalents under `$XDG_DATA_HOME`. Configuration is retained and can be removed separately from the configuration directory.

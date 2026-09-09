@@ -3,6 +3,8 @@ import os
 from pathlib import Path
 import sys
 
+from i18n import LocalizedError
+
 
 def config_home():
     return Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config")))
@@ -15,7 +17,7 @@ def desktop_quote(value):
         value = value.replace(char, "\\" + char)
     value = value.replace("\\", "\\\\")
     if "\n" in value or "\r" in value:
-        raise ValueError("程序路径不能包含换行符")
+        raise LocalizedError("Application paths cannot contain newlines")
     return '"' + value + '"'
 
 

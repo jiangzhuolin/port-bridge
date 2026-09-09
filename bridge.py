@@ -10,6 +10,8 @@ import tempfile
 import time
 from dataclasses import asdict, dataclass, field
 
+from i18n import LocalizedError, error_message
+
 
 @dataclass(frozen=True)
 class Rule:
@@ -23,22 +25,22 @@ class Rule:
 
     def validate(self):
         if not isinstance(self.id, str) or not self.id:
-            raise ValueError("规则 ID 无效")
+            raise LocalizedError("Invalid rule ID")
         if not isinstance(self.name, str) or not self.name.strip():
-            raise ValueError("请输入规则名称")
+            raise LocalizedError("Enter a rule name")
         try:
             ipaddress.ip_address(self.listen_host)
         except ValueError:
-            raise ValueError("监听地址必须是 IP，例如 0.0.0.0、127.0.0.1 或 ::") from None
+            raise LocalizedError("Listen address must be an IP, such as 0.0.0.0, 127.0.0.1 or ::") from None
         if (not isinstance(self.target_host, str) or not self.target_host
                 or any(c.isspace() for c in self.target_host)
                 or any(c in self.target_host for c in "/[]")):
-            raise ValueError("目标地址请只填 IP 或主机名，不含协议、端口或方括号")
+            raise LocalizedError("Enter only a target IP or hostname, without a protocol, port or brackets")
         for port in (self.listen_port, self.target_port):
             if type(port) is not int or not 1 <= port <= 65535:
-                raise ValueError("端口必须是 1–65535 的整数")
+                raise LocalizedError("Ports must be integers from 1 to 65535")
         if type(self.auto_start) is not bool:
-            raise ValueError("自动启动选项无效")
+            raise LocalizedError("Invalid auto-start option")
         if self.listen_port == self.target_port:
             try:
                 target = ipaddress.ip_address(self.target_host)
@@ -47,7 +49,7 @@ class Rule:
             local = ipaddress.ip_address(self.listen_host)
             if (target and (target == local or (local.is_unspecified and target.is_loopback))) or (
                     self.target_host.lower() == "localhost" and (local.is_loopback or local.is_unspecified)):
-                raise ValueError("目标指向当前监听端口，会形成转发循环")
+                raise LocalizedError("The target points to this listening port and would create a forwarding loop")
         return self
 
 
@@ -64,10 +66,10 @@ class Config:
             return []
         data = json.loads(self.path.read_text(encoding="utf-8"))
         if not isinstance(data, dict) or data.get("version") != 1 or not isinstance(data.get("rules"), list):
-            raise ValueError("不支持的配置格式")
+            raise LocalizedError("Unsupported configuration format")
         rules = [Rule(**item).validate() for item in data["rules"]]
         if len({r.id for r in rules}) != len(rules):
-            raise ValueError("配置包含重复规则 ID")
+            raise LocalizedError("Configuration contains duplicate rule IDs")
         return rules
 
     def save(self, rules):
@@ -109,8 +111,10 @@ class Engine:
         self.max_connections = max_connections
         self.listeners = {}
 
-    def log(self, rule, message):
-        self.emit({"type": "log", "id": rule.id, "name": rule.name, "message": message})
+    def log(self, rule, message, **values):
+        values = {key: error_message(value) if isinstance(value, BaseException) else value
+                  for key, value in values.items()}
+        self.emit({"type": "log", "id": rule.id, "name": rule.name, "message": message, "values": values})
 
     async def start(self, rule):
         rule.validate()
@@ -123,8 +127,9 @@ class Engine:
                 lambda reader, writer: self.accept(state, reader, writer),
                 rule.listen_host, rule.listen_port, family=family, start_serving=False)
         except OSError as exc:
-            self.emit({"type": "status", "id": rule.id, "state": "启动失败"})
-            self.log(rule, f"无法监听 {endpoint(rule.listen_host, rule.listen_port)}：{exc}")
+            self.emit({"type": "status", "id": rule.id, "state": "failed"})
+            self.log(rule, "Unable to listen on {endpoint}: {error}",
+                     endpoint=endpoint(rule.listen_host, rule.listen_port), error=exc)
             raise
         state.server = server
         self.listeners[rule.id] = state
@@ -135,8 +140,9 @@ class Engine:
             await server.wait_closed()
             self.listeners.pop(rule.id, None)
             raise
-        self.emit({"type": "status", "id": rule.id, "state": "运行中"})
-        self.log(rule, f"已监听 {endpoint(rule.listen_host, rule.listen_port)} → {endpoint(rule.target_host, rule.target_port)}")
+        self.emit({"type": "status", "id": rule.id, "state": "running"})
+        self.log(rule, "Listening on {listen} → {target}",
+                 listen=endpoint(rule.listen_host, rule.listen_port), target=endpoint(rule.target_host, rule.target_port))
 
     def accept(self, state, reader, writer):
         if state.stopping or len(state.tasks) >= self.max_connections:
@@ -166,7 +172,7 @@ class Engine:
                             probe.bind((address[0], 0))
                         except OSError:
                             continue
-                    raise OSError("目标是本机同一监听端口，已阻止转发循环")
+                    raise LocalizedError("Forwarding loop blocked: the target is the same local listening port")
             remote_reader, upstream = await asyncio.wait_for(
                 asyncio.open_connection(state.rule.target_host, state.rule.target_port),
                 timeout=self.connect_timeout)
@@ -187,10 +193,11 @@ class Engine:
             pumps = [asyncio.create_task(copy(reader, upstream, "up")),
                      asyncio.create_task(copy(remote_reader, writer, "down"))]
             await asyncio.gather(*pumps)
-        except (OSError, asyncio.TimeoutError) as exc:
+        except (OSError, asyncio.TimeoutError, LocalizedError) as exc:
             state.errors += 1
             if time.monotonic() - state.last_error_log >= 1:
-                self.log(state.rule, f"连接失败 / 中断：{exc or '连接目标超时'}")
+                self.log(state.rule, "Connection failed / interrupted: {error}",
+                         error=exc if str(exc) else LocalizedError("Connection to the target timed out"))
                 state.last_error_log = time.monotonic()
         finally:
             for task in pumps:
@@ -209,7 +216,7 @@ class Engine:
     async def stop(self, rule_id):
         state = self.listeners.get(rule_id)
         if state is None:
-            self.emit({"type": "status", "id": rule_id, "state": "已停止"})
+            self.emit({"type": "status", "id": rule_id, "state": "stopped"})
             return
         state.stopping = True
         state.server.close()
@@ -223,8 +230,8 @@ class Engine:
         await state.server.wait_closed()
         state.writers.clear()
         self.listeners.pop(rule_id, None)
-        self.emit({"type": "status", "id": rule_id, "state": "已停止"})
-        self.log(state.rule, "已停止监听并关闭现有连接")
+        self.emit({"type": "status", "id": rule_id, "state": "stopped"})
+        self.log(state.rule, "Stopped listening and closed existing connections")
 
     async def stop_all(self):
         for rule_id in list(self.listeners):

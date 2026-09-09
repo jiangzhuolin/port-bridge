@@ -128,7 +128,7 @@ class ForwardingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await asyncio.wait_for(reader.read(), 2), b"")
         writer.close()
         await writer.wait_closed()
-        self.assertTrue(any("连接失败" in item.get("message", "") for item in self.events))
+        self.assertTrue(any(item.get("message") == "Connection failed / interrupted: {error}" for item in self.events))
         server = await asyncio.start_server(self.echo, "127.0.0.1", port)
         try:
             await self.exchange(rule.listen_port, b"target recovered")
@@ -163,7 +163,8 @@ class ForwardingTests(unittest.IsolatedAsyncioTestCase):
             writer.close()
             await writer.wait_closed()
         self.assertEqual(self.engine.snapshot()[rule.id]["total"], 1)
-        self.assertTrue(any("转发循环" in item.get("message", "") for item in self.events))
+        self.assertTrue(any("Forwarding loop blocked" in str(item.get("values", {}).get("error", ""))
+                            for item in self.events))
 
 
 class ConfigTests(unittest.TestCase):

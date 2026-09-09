@@ -16,7 +16,7 @@ def write(relative, content):
     path.write_text(content, encoding="utf-8", newline="\n")
 
 
-for name in ("app.py", "bridge.py", "desktop.py", "README.md"):
+for name in ("app.py", "bridge.py", "desktop.py", "i18n.py", "settings.py", "README.md", "README.zh-CN.md"):
     target = STAGE / "usr" / "share" / "port-bridge" / name
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(SOURCE / name, target)
@@ -44,12 +44,12 @@ Maintainer: Port Bridge Authors <port-bridge@example.invalid>
 Depends: python3 (>= 3.10), python3-tk
 Recommends: fonts-noto-cjk
 Description: Desktop GUI for multiple TCP port forwarding rules
- Chinese-language desktop application with per-rule start/stop,
+ English and Chinese desktop application with per-rule start/stop,
  connection statistics, persistent configuration and desktop autostart.
 """)
 with zipfile.ZipFile(DIST / "port-bridge-1.0.0-source.zip", "w", zipfile.ZIP_DEFLATED) as archive:
     paths = [SOURCE / name for name in (
-        "app.py", "bridge.py", "desktop.py", "install.py", "icon.svg", "README.md", ".gitignore")]
+        "app.py", "bridge.py", "desktop.py", "i18n.py", "settings.py", "install.py", "icon.svg", "README.md", "README.zh-CN.md", ".gitignore")]
     paths.extend((SOURCE / "tests").glob("*.py"))
     paths.extend((SOURCE / "scripts").glob("*.py"))
     paths.extend((SOURCE / "scripts").glob("*.sh"))
